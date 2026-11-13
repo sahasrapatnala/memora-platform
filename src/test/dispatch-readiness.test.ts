@@ -1,0 +1,38 @@
+import { describe, expect, it } from "vitest";
+import { validateDispatchReadiness } from "@/lib/memora/dispatch-readiness";
+const input = {
+  job: { id: "job", file_id: "file", workspace_id: "workspace", user_id: "owner", status: "Approved" },
+  decision: { id: "audit", processing_job_id: "job", workspace_id: "workspace", file_id: "file", status: "Approved" },
+  file: { id: "file", workspace_id: "workspace", user_id: "owner", status: "Uploaded", size_bytes: 220480662, sha256: "a".repeat(64), format: "MP4" },
+  userId: "reviewer", role: "reviewer", ownerIsMember: true,
+};
+describe("fail-closed dispatch readiness", () => {
+  it("never claims or dispatches even an approved eligible video while capabilities are missing", () => {
+    expect(validateDispatchReadiness(input)).toMatchObject({ jobId: "job", dispatched: false, status: "Blocked" });
+    expect(validateDispatchReadiness(input).blockers).toHaveLength(4);
+  });
+  it("requires authenticated reviewer access", () => {
+    expect(() => validateDispatchReadiness({ ...input, userId: "" })).toThrow("Reviewer access");
+    expect(() => validateDispatchReadiness({ ...input, role: "member" })).toThrow("Reviewer access");
+  });
+  it("rejects every ineligible job state", () => {
+    for (const status of ["Awaiting Review", "Rejected", "Cancelled", "Completed", "Failed"]) {
+      expect(() => validateDispatchReadiness({ ...input, job: { ...input.job, status } })).toThrow();
+    }
+  });
+  it("requires a matching processing approval", () => {
+    expect(() => validateDispatchReadiness({ ...input, decision: undefined })).toThrow();
+    expect(() => validateDispatchReadiness({ ...input, decision: { ...input.decision, file_id: "other" } })).toThrow();
+  });
+  it("revalidates original ownership, workspace, status and membership", () => {
+    expect(() => validateDispatchReadiness({ ...input, ownerIsMember: false })).toThrow();
+    for (const file of [{ ...input.file, user_id: "other" }, { ...input.file, workspace_id: "other" }, { ...input.file, status: "Deleted" }]) {
+      expect(() => validateDispatchReadiness({ ...input, file })).toThrow();
+    }
+  });
+  it("requires registered bounded size and SHA-256 integrity", () => {
+    for (const file of [{ ...input.file, size_bytes: 0 }, { ...input.file, size_bytes: 5368709121 }, { ...input.file, sha256: null }]) {
+      expect(() => validateDispatchReadiness({ ...input, file })).toThrow();
+    }
+  });
+});

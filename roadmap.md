@@ -1,4 +1,8 @@
 # MEMORA Phase 2
+## Python dispatch integration
+- [x] Add approval-gated readiness validation that fails closed without claiming or executing jobs; verify against the actual Approved Tech Concept Hack recording.
+- [ ] Connect atomic dispatch and protected ingestion — blocked: deployed processor URL/shared credential and private generated-assets write authorization are unavailable; repository video processing still reports Blocked.
+- [ ] Verify live extraction and persisted outputs — blocked by the deployment and storage capabilities above.
 ## Request Processing action
 - [x] Add selected-original request action with eligibility, active-job status and Processing Review navigation.
 - [x] Test eligibility and existing request rules; verify existing-job details, review navigation and refresh with the actual authenticated owner.

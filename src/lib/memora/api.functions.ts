@@ -6,6 +6,27 @@ import { canDeleteOriginal } from "./file-rules";
 import { createProcessingRequest, processingRequestInput } from "./processing-request";
 import { setResponseHeader } from "@tanstack/react-start/server";
 import { reviewInput, reviewProcessing } from "./processing-review";
+import { validateDispatchReadiness } from "./dispatch-readiness";
+
+// Read-only preflight. Never claim a job until a real protected execution path exists.
+export const getDispatchReadiness = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ jobId: z.string().uuid(), workspaceId: z.string().uuid() }).strict())
+  .handler(async ({ data, context }) => {
+    setResponseHeader("Cache-Control", "no-store");
+    const membership = await context.supabase.from("workspace_members").select("role").eq("workspace_id", data.workspaceId).eq("user_id", context.userId).maybeSingle();
+    if (membership.error || !membership.data || !["owner", "reviewer"].includes(membership.data.role)) throw new Error("Reviewer access required");
+    const jobResult = await context.supabase.from("processing_jobs").select().eq("id", data.jobId).eq("workspace_id", data.workspaceId).maybeSingle();
+    if (jobResult.error || !jobResult.data) throw new Error("Job access required");
+    const job = jobResult.data;
+    const [fileResult, decisionResult, ownerMembership] = await Promise.all([
+      context.supabase.from("files").select().eq("id", job.file_id).eq("workspace_id", data.workspaceId).maybeSingle(),
+      context.supabase.from("approval_requests").select().eq("processing_job_id", job.id).maybeSingle(),
+      context.supabase.from("workspace_members").select("id").eq("workspace_id", data.workspaceId).eq("user_id", job.user_id).maybeSingle(),
+    ]);
+    if (fileResult.error || !fileResult.data || decisionResult.error || ownerMembership.error) throw new Error("Dispatch eligibility could not be verified");
+    return validateDispatchReadiness({ job, file: fileResult.data, decision: decisionResult.data ?? undefined, userId: context.userId, role: membership.data.role, ownerIsMember: !!ownerMembership.data });
+  });
 
 export const decideProcessing = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
