@@ -1,4 +1,7 @@
 # MEMORA Phase 2
+## Request Processing action
+- [x] Add selected-original request action with eligibility, active-job status and Processing Review navigation.
+- [x] Test eligibility and existing request rules; verify existing-job details, review navigation and refresh with the actual authenticated owner.
 ## Processing approval foundation
 - [x] Add atomic reviewer decisions with a job-linked audit separate from retention authorization.
 - [x] Add review controls and a non-executing, approval-gated dispatch contract; test decision rules.
@@ -6,7 +9,7 @@
 ## Secure processing requests
 - [x] Apply owner-scoped INSERT access, Uploaded-file enforcement and concurrent active-job uniqueness without changing storage.
 - [x] Add authenticated request operation with duplicate recovery and security tests; leave Python dispatch disabled.
-- [ ] Verify live request persistence — blocked: the requesting user's authenticated account has no workspace or Uploaded original; no account or original was substituted.
+- [x] Verify live request persistence — concurrent authenticated requests for the existing 210 MiB original returned one Awaiting Review job, preserved after refresh.
 ## Password recovery redirect
 - [x] Inspect the exact recovery request and live allowed redirect addresses.
 - [x] Verify a real local recovery request carries the requesting origin and dedicated page; reject missing recovery links before password submission.

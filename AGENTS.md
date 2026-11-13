@@ -42,3 +42,4 @@ use the editor.
 - Keep managed social sign-in on hosted origins and guard loopback development hosts in application-owned auth code; the local server does not serve Lovable's OAuth broker, while email/password uses the same Cloud client and accounts.
 - Processing requests use the authenticated RLS client and a database partial unique index; unknown job states remain active and only Completed, Failed, Cancelled or Rejected permit a new request, preventing concurrent duplicates without privileged writes.
 - Processing decisions use a narrow atomic database RPC with current owner/reviewer checks and a locked job; job-linked approval records must never authorize retention, and dispatch candidates are non-executing until durable claim and result ingestion exist.
+- Original details use a shared ProcessingAction control that calls requestProcessing with the selected file identifiers; membership checks gate UI eligibility while server authorization remains authoritative.

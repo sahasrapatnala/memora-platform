@@ -12,6 +12,7 @@ import { formatBytes } from "@/lib/memora/integrity";
 import { filterOriginals } from "@/lib/memora/file-rules";
 import { deleteOriginal } from "@/lib/memora/api.functions";
 import { supabase } from "@/integrations/supabase/client";
+import { ProcessingAction } from "./processing-action";
 
 type Original = NonNullable<ReturnType<typeof useWorkspace>["data"]>["files"][number];
 export function FileManager({ files }: { files: Original[] }) {
@@ -45,7 +46,8 @@ export function FileManager({ files }: { files: Original[] }) {
           const result = await supabase.storage.from("original-files").createSignedUrl(detail.storage_path, 60);
           if (result.error) toast.error("Could not open this private file.");
           else window.open(result.data.signedUrl, "_blank", "noopener,noreferrer");
-        }}><Download />Open original</Button></>}
+        }}><Download />Open original</Button>
+        <ProcessingAction key={detail.id} file={detail} close={() => setDetail(null)} /></>}
     </DialogContent></Dialog>
     <AlertDialog open={!!remove} onOpenChange={(open) => { if (!open && !busy) setRemove(null); }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete original permanently?</AlertDialogTitle><AlertDialogDescription className="break-all">{remove?.name} will be removed from private storage. This cannot be undone. Its upload and deletion history will remain.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel><Button variant="destructive" disabled={busy} onClick={async () => {
       if (!remove) return;
