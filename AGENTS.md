@@ -40,3 +40,4 @@ use the editor.
 - Upload originals directly with TUS and user/workspace-scoped persisted checkpoints; stream server-side SHA-256 verification before registration to avoid whole-file memory allocation.
 - Python processing accepts only private expiring Cloud source descriptors, streams originals to capacity-checked scratch disk and emits measured download events; it never proxies multipart originals or reports unimplemented video analysis as successful.
 - Keep managed social sign-in on hosted origins and guard loopback development hosts in application-owned auth code; the local server does not serve Lovable's OAuth broker, while email/password uses the same Cloud client and accounts.
+- Processing requests use the authenticated RLS client and a database partial unique index; unknown job states remain active and only Completed, Failed, Cancelled or Rejected permit a new request, preventing concurrent duplicates without privileged writes.

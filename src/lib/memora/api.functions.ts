@@ -3,6 +3,16 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { validateFile } from "./data";
 import { canDeleteOriginal } from "./file-rules";
+import { createProcessingRequest, processingRequestInput } from "./processing-request";
+import { setResponseHeader } from "@tanstack/react-start/server";
+
+export const requestProcessing = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(processingRequestInput)
+  .handler(async ({ data, context }) => {
+    setResponseHeader("Cache-Control", "no-store");
+    return createProcessingRequest(context.supabase, context.userId, data);
+  });
 // Only a trusted dispatcher should forward this descriptor to the independent worker.
 export const getProcessingSource = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

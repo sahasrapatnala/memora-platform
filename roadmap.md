@@ -1,4 +1,8 @@
 # MEMORA Phase 2
+## Secure processing requests
+- [x] Apply owner-scoped INSERT access, Uploaded-file enforcement and concurrent active-job uniqueness without changing storage.
+- [x] Add authenticated request operation with duplicate recovery and security tests; leave Python dispatch disabled.
+- [ ] Verify live request persistence — blocked: the requesting user's authenticated account has no workspace or Uploaded original; no account or original was substituted.
 ## Password recovery redirect
 - [x] Inspect the exact recovery request and live allowed redirect addresses.
 - [x] Verify a real local recovery request carries the requesting origin and dedicated page; reject missing recovery links before password submission.

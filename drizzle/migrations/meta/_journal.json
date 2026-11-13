@@ -50,6 +50,13 @@
       "when": 1794577007553,
       "tag": "0006_five_gib_original_registration",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794596765724,
+      "tag": "0007_secure_processing_requests",
+      "breakpoints": true
     }
   ]
 }
