@@ -1,8 +1,8 @@
 # MEMORA Phase 2
 ## Large-file storage compatibility
-- [ ] Audit live storage limits, PostgreSQL identity and resumable protocol.
-- [ ] Implement resumable uploads and bounded-memory original verification without design changes or paid upgrades.
-- [ ] Verify interruption/resumption and report remaining large-file and deployment constraints.
+- [x] Audit live storage limits, PostgreSQL identity and resumable protocol.
+- [x] Implement resumable uploads and bounded-memory original verification without design changes or paid upgrades.
+- [x] Verify interruption/resumption and report remaining large-file and deployment constraints.
 
 - [x] Verify Cloud schema and permissions; implement profiles and reliable upload registration/activity.
 - [x] Protect application pages; implement sign-in, sign-out, recovery and session persistence.
@@ -13,5 +13,5 @@
 - [x] Connect real data, workspace settings, upload and exports; audit all controls.
 - [x] Apply restrained enterprise presentation and verify desktop/mobile.
 - [x] Test integrity rules and public empty states; deliver functionality audit.
-- [ ] Verify account creation/sign-in, PDF/PPTX/MP4 uploads, workspace/profile saves, second-user access isolation, deletion and refresh persistence — no confirmed application account exists; user must create and confirm one.
+- [ ] Verify account creation/password sign-in, PDF/PPTX uploads, profile saves and second-user isolation — requires separate account/format-specific checks; authenticated MP4 storage, workspace creation, deletion and refresh persistence passed the large-file audit.
 - [ ] Live extraction, diarization, slide detection, similarity and inventory analysis — requires deployed independent Python processing service and model access.

@@ -1,3 +1,5 @@
+import { MAX_ORIGINAL_BYTES } from "./upload-rules";
+
 export const stamp = (seconds: number) =>
   `${Math.floor(seconds / 60)
     .toString()
@@ -8,7 +10,7 @@ export function storageSavings(original: number, retained: number) {
 }
 export function validateFile(name: string, size: number) {
   if (!/\.(mp4|mov|pdf|pptx|docx)$/i.test(name)) return "Unsupported file format";
-  if (size > 50 * 1024 * 1024) return "The current secure upload limit is 50 MB";
+  if (!Number.isSafeInteger(size) || size > MAX_ORIGINAL_BYTES) return "The current secure upload limit is 2 GB";
   if (size <= 0) return "The file is empty";
   return null;
 }

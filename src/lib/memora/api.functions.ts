@@ -25,14 +25,10 @@ export const registerOriginal = createServerFn({ method: "POST" })
       .maybeSingle();
     if (membership.error || !membership.data) throw new Error("Workspace access required");
     if (!data.path.startsWith(`${context.userId}/`)) throw new Error("Invalid file location");
-    const download = await context.supabase.storage.from("original-files").download(data.path);
-    if (download.error || !download.data) throw new Error("Could not verify the stored original");
-    const bytes = await download.data.arrayBuffer();
-    if (bytes.byteLength !== data.size) throw new Error("File size verification failed");
-    const digest = await crypto.subtle.digest("SHA-256", bytes);
-    const sha256 = Array.from(new Uint8Array(digest))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
+    const source = await context.supabase.storage.from("original-files").createSignedUrl(data.path, 7200);
+    if (source.error || !source.data) throw new Error("Could not verify the stored original");
+    const { verifyStoredOriginal } = await import("./verify-original.server");
+    const sha256 = await verifyStoredOriginal(source.data.signedUrl, data.size);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const result = await supabaseAdmin.rpc("register_verified_original", {
       p_user: context.userId, p_workspace: data.workspaceId, p_path: data.path,

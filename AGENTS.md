@@ -37,3 +37,4 @@ use the editor.
 - Owner-confirmed deletion removes storage bytes through authenticated server functions and retains deleted metadata/audit history, so traceability survives deletion.
 - Application pages live under the client-only authenticated layout; the public home shows account access while signed out, so private workspaces never appear before session validation.
 - Run computational video and document extraction in an independent Python service, never in the browser or Worker runtime.
+- Upload originals directly with TUS and user/workspace-scoped persisted checkpoints; stream server-side SHA-256 verification before registration to avoid whole-file memory allocation.

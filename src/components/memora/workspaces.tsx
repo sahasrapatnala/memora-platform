@@ -25,6 +25,7 @@ import { registerOriginal, recordUploadFailure } from "@/lib/memora/api.function
 import { useWorkspace } from "./workspace-data";
 import { FileManager } from "./file-manager";
 import { formatBytes, measuredStorage } from "@/lib/memora/integrity";
+import { uploadOriginal, UploadPaused } from "@/lib/memora/resumable-upload";
 
 export function DataState() {
   const { user, workspace, loading, error, refresh } = useWorkspace();
@@ -146,7 +147,9 @@ export function UploadWorkspace() {
   const register = useServerFn(registerOriginal);
   const logFailure = useServerFn(recordUploadFailure);
   const [uploadStates, setUploadStates] = useState<Record<string, string>>({});
-  const paths = useRef(new Map<File, string>());
+  const activeUpload = useRef<AbortController | null>(null);
+  const [transferring, setTransferring] = useState(false);
+  useEffect(() => () => activeUpload.current?.abort(), []);
   const select = (files: FileList | null) => {
     if (!files) return;
     const valid: File[] = [];
@@ -169,24 +172,32 @@ export function UploadWorkspace() {
         return;
       }
       const failed: File[] = [];
-      for (const file of selected) {
+      for (const [index, file] of selected.entries()) {
         const key = `${file.name}-${file.size}`;
         try {
-          let path = paths.current.get(file);
-          if (!path) {
-            path = `${user.id}/${crypto.randomUUID()}/${file.name}`;
-            setUploadStates((prev) => ({ ...prev, [key]: "Uploading to private storage…" }));
-            const stored = await supabase.storage.from("original-files").upload(path, file);
-            if (stored.error) throw new Error("Secure upload failed");
-            paths.current.set(file, path);
-          }
+          const controller = new AbortController();
+          activeUpload.current = controller;
+          setTransferring(true);
+          setUploadStates((prev) => ({ ...prev, [key]: "Connecting to private storage…" }));
+          const stored = await uploadOriginal(file, user.id, workspace.id, controller.signal, (sent, total) => {
+            setUploadStates((prev) => ({ ...prev, [key]: `Uploading · ${Math.floor(sent / total * 100)}% · ${formatBytes(sent)} / ${formatBytes(total)}` }));
+          });
+          setTransferring(false);
+          activeUpload.current = null;
           setUploadStates((prev) => ({ ...prev, [key]: "Verifying and saving metadata…" }));
-          await register({ data: { workspaceId: workspace.id, path, name: file.name, format: file.name.split(".").pop()?.toUpperCase() ?? "", size: file.size } });
-          paths.current.delete(file);
+          await register({ data: { workspaceId: workspace.id, path: stored.path, name: file.name, format: file.name.split(".").pop()?.toUpperCase() ?? "", size: file.size } });
+          stored.complete();
           setUploadStates((prev) => ({ ...prev, [key]: "Uploaded" }));
         } catch (error) {
+          setTransferring(false);
+          activeUpload.current = null;
+          if (error instanceof UploadPaused) {
+            failed.push(...selected.slice(index));
+            setUploadStates((prev) => ({ ...prev, [key]: "Paused" }));
+            break;
+          }
           failed.push(file);
-          setUploadStates((prev) => ({ ...prev, [key]: paths.current.has(file) ? "Stored; registration failed. Retry verification." : "Upload failed. Retry." }));
+          setUploadStates((prev) => ({ ...prev, [key]: "Interrupted or verification failed. Retry / resume." }));
           toast.error(`${file.name}: ${error instanceof Error ? error.message : "Upload failed"}`);
           try { await logFailure({ data: { workspaceId: workspace.id, name: file.name.slice(0,255) } }); }
           catch { toast.error("Upload failure could not be added to activity history."); }
@@ -238,7 +249,7 @@ export function UploadWorkspace() {
           <Upload />
           Browse files
         </Button>
-        <small>MP4, MOV, PDF, PPTX, DOCX · Current upload limit: 50 MB per file</small>
+        <small>MP4, MOV, PDF, PPTX, DOCX · Current upload limit: 2 GB per file</small>
       </div>
       {selected.length > 0 && (
         <section className="content-section">
@@ -259,9 +270,10 @@ export function UploadWorkspace() {
             </div>
           ))}
           <Button disabled={busy || !signedIn || !workspace} onClick={upload}>
-            {busy ? "Saving originals…" : "Upload & register originals"}
+            {busy ? "Saving originals…" : "Upload / resume originals"}
             <ArrowRight />
           </Button>
+          {transferring && <Button variant="outline" onClick={() => activeUpload.current?.abort()}>Pause upload</Button>}
           {!signedIn && (
             <Button variant="link" asChild>
               <Link to="/auth">Sign in to upload</Link>
