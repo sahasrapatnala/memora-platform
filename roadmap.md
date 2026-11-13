@@ -1,4 +1,9 @@
 # MEMORA Phase 2
+## Password recovery redirect
+- [x] Inspect the exact recovery request and live allowed redirect addresses.
+- [x] Verify a real local recovery request carries the requesting origin and dedicated page; reject missing recovery links before password submission.
+- [ ] Validate a newly generated email returns locally — blocked: local address must be added in Cloud Auth settings; actual email destination must be checked.
+- [ ] Verify recovery session and password update end to end — blocked: user must open the newly generated email and choose their password.
 ## Local authentication
 - [x] Diagnose actual email/password responses and hosted social-login dependence without changing accounts.
 - [x] Preserve hosted sign-in code, disable unavailable local social sign-in, and provide actionable errors.

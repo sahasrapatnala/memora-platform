@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { authErrorMessage, isLocalAuthHost } from "@/lib/memora/auth-rules";
+import { authErrorMessage, isLocalAuthHost, passwordRecoveryRedirect } from "@/lib/memora/auth-rules";
 
 describe("local and hosted authentication boundaries", () => {
+  it("returns password recovery to the requesting local origin without fixing a port", () => {
+    expect(passwordRecoveryRedirect("http://127.0.0.1:5173")).toBe("http://127.0.0.1:5173/reset-password");
+    expect(passwordRecoveryRedirect("http://localhost:8080")).toBe("http://localhost:8080/reset-password");
+  });
+  it("keeps hosted password recovery on the requesting hosted origin", () => {
+    expect(passwordRecoveryRedirect("https://memora-platform.lovable.app")).toBe("https://memora-platform.lovable.app/reset-password");
+  });
   it("prevents managed OAuth requests on local development hosts", () => {
     for (const host of ["localhost", "app.localhost", "127.0.0.1", "127.0.0.2", "[::1]", "::1"]) expect(isLocalAuthHost(host)).toBe(true);
   });

@@ -1,4 +1,8 @@
 /** The managed OAuth broker is not served by a local development server. */
+export function passwordRecoveryRedirect(origin: string): string {
+  return `${origin}/reset-password`;
+}
+
 export function isLocalAuthHost(hostname: string): boolean {
   const host = hostname.toLowerCase();
   return host === "localhost" || host.endsWith(".localhost") || host === "::1" || host === "[::1]" || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host);

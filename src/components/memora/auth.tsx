@@ -9,7 +9,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import "@lovable.dev/cloud-auth-js/styles.css";
 import { useWorkspace } from "./workspace-data";
 import { useQueryClient } from "@tanstack/react-query";
-import { authErrorMessage, isLocalAuthHost } from "@/lib/memora/auth-rules";
+import { authErrorMessage, isLocalAuthHost, passwordRecoveryRedirect } from "@/lib/memora/auth-rules";
 export function Auth({ recovery = false }: { recovery?: boolean }) {
   const [mode, setMode] = useState<"signin" | "signup" | "reset" | "password">(recovery ? "password" : "signin");
   const [email, setEmail] = useState("");
@@ -18,13 +18,32 @@ export function Auth({ recovery = false }: { recovery?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [localAuth, setLocalAuth] = useState(false);
   const [requestError, setRequestError] = useState("");
+  const [recoveryReady, setRecoveryReady] = useState(false);
   const { user: account } = useWorkspace();
   const user = account?.email ?? null;
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   useEffect(() => {
     setLocalAuth(isLocalAuthHost(window.location.hostname));
-    if (recovery && window.location.hash.includes("type=recovery")) setMode("password");
+    if (!recovery) return;
+    const hash = new URLSearchParams(window.location.hash.slice(1));
+    let active = true;
+    if (hash.get("type") !== "recovery" || hash.has("error")) {
+      setRequestError("Open a fresh password reset link from your email before choosing a new password.");
+      return;
+    }
+    // getUser waits for the client's URL-session initialization and validates with Cloud.
+    void supabase.auth.getUser().then(({ data, error }) => {
+      if (!active) return;
+      if (error || !data.user) {
+        setRequestError("This reset link is invalid or expired. Request a new password reset email.");
+        return;
+      }
+      setRecoveryReady(true);
+    }).catch(() => {
+      if (active) setRequestError("Cannot validate this reset link. Check your connection and request a new link.");
+    });
+    return () => { active = false; };
   }, [recovery]);
   async function submit() {
     if (busy) return;
@@ -32,13 +51,14 @@ export function Auth({ recovery = false }: { recovery?: boolean }) {
     setBusy(true);
     try {
       if (mode === "password") {
+        if (!recoveryReady) throw new Error("Recovery session is not ready");
         const r = await supabase.auth.updateUser({ password });
         if (r.error) throw r.error;
         toast.success("Password updated");
         void navigate({ to: "/", replace: true });
       } else if (mode === "reset") {
         const r = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: window.location.origin + "/reset-password",
+          redirectTo: passwordRecoveryRedirect(window.location.origin),
         });
         if (r.error) throw r.error;
         toast.success("Check your email for a password reset link");
@@ -163,7 +183,8 @@ export function Auth({ recovery = false }: { recovery?: boolean }) {
                 />
               )}
               {requestError && <p role="alert">{requestError}</p>}
-              <Button disabled={busy} type="submit">
+              {mode === "reset" && localAuth && <p>For the email to return here, add this app’s address under Cloud Auth settings → Advanced → Redirect URLs using 127.0.0.1 and your current port. Unlisted addresses return to hosted MEMORA instead.</p>}
+              <Button disabled={busy || (mode === "password" && !recoveryReady)} type="submit">
                 {busy
                   ? "Please wait…"
                   : mode === "signup"
@@ -213,7 +234,7 @@ export function Auth({ recovery = false }: { recovery?: boolean }) {
                 {localAuth && <p>Google and Lovable sign-in are available on hosted MEMORA only. Use email and password here; if you used Google before, choose Forgot password to set a password for the same account.</p>}
               </>
             )}
-            <div className="action-row">
+            {!recovery && <div className="action-row">
               <Button
                 variant="link"
                 size="sm"
@@ -228,7 +249,7 @@ export function Auth({ recovery = false }: { recovery?: boolean }) {
               >
                 {mode === "reset" ? "Back to sign in" : "Forgot password?"}
               </Button>
-            </div>
+            </div>}
           </>
         )}
       </div>
