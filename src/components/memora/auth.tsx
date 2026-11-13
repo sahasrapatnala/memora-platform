@@ -9,20 +9,26 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import "@lovable.dev/cloud-auth-js/styles.css";
 import { useWorkspace } from "./workspace-data";
 import { useQueryClient } from "@tanstack/react-query";
+import { authErrorMessage, isLocalAuthHost } from "@/lib/memora/auth-rules";
 export function Auth({ recovery = false }: { recovery?: boolean }) {
   const [mode, setMode] = useState<"signin" | "signup" | "reset" | "password">(recovery ? "password" : "signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [localAuth, setLocalAuth] = useState(false);
+  const [requestError, setRequestError] = useState("");
   const { user: account } = useWorkspace();
   const user = account?.email ?? null;
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   useEffect(() => {
+    setLocalAuth(isLocalAuthHost(window.location.hostname));
     if (recovery && window.location.hash.includes("type=recovery")) setMode("password");
   }, [recovery]);
   async function submit() {
+    if (busy) return;
+    setRequestError("");
     setBusy(true);
     try {
       if (mode === "password") {
@@ -53,14 +59,20 @@ export function Auth({ recovery = false }: { recovery?: boolean }) {
         void navigate({ to: "/", replace: true });
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "";
-      toast.error(/confirm/i.test(message) ? "Confirm your email before signing in." : /already/i.test(message) ? "An account already exists for this email." : "Could not complete this request. Check your details and try again.");
+      const message = authErrorMessage(error);
+      setRequestError(message);
+      toast.error(message);
     } finally {
       setBusy(false);
     }
   }
   async function social(provider: "google" | "lovable") {
     if (busy) return;
+    if (isLocalAuthHost(window.location.hostname)) {
+      setRequestError("Google and Lovable sign-in require hosted MEMORA. Use email and password locally.");
+      return;
+    }
+    setRequestError("");
     setBusy(true);
     try {
       const result = await lovable.auth.signInWithOAuth(provider, {
@@ -130,6 +142,7 @@ export function Auth({ recovery = false }: { recovery?: boolean }) {
               {mode !== "password" && (
                 <Input
                   type="email"
+                  autoComplete="email"
                   aria-label="Email address"
                   placeholder="Work email"
                   required
@@ -140,6 +153,7 @@ export function Auth({ recovery = false }: { recovery?: boolean }) {
               {mode !== "reset" && (
                 <Input
                   type="password"
+                  autoComplete={mode === "signin" ? "current-password" : "new-password"}
                   aria-label="Password"
                   placeholder="Password"
                   minLength={8}
@@ -148,6 +162,7 @@ export function Auth({ recovery = false }: { recovery?: boolean }) {
                   onChange={(e) => setPassword(e.target.value)}
                 />
               )}
+              {requestError && <p role="alert">{requestError}</p>}
               <Button disabled={busy} type="submit">
                 {busy
                   ? "Please wait…"
@@ -165,7 +180,7 @@ export function Auth({ recovery = false }: { recovery?: boolean }) {
                 <Button
                   variant="outline"
                   className="social-button"
-                  disabled={busy}
+                  disabled={busy || localAuth}
                   onClick={() => social("google")}
                 >
                   <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
@@ -190,25 +205,26 @@ export function Auth({ recovery = false }: { recovery?: boolean }) {
                 </Button>
                 <Button
                   className="lovable-auth-button social-button"
-                  disabled={busy}
+                  disabled={busy || localAuth}
                   onClick={() => social("lovable")}
                 >
                   Continue with Lovable
                 </Button>
+                {localAuth && <p>Google and Lovable sign-in are available on hosted MEMORA only. Use email and password here; if you used Google before, choose Forgot password to set a password for the same account.</p>}
               </>
             )}
             <div className="action-row">
               <Button
                 variant="link"
                 size="sm"
-                onClick={() => setMode(mode === "signup" ? "signin" : "signup")}
+                onClick={() => { setRequestError(""); setMode(mode === "signup" ? "signin" : "signup"); }}
               >
                 {mode === "signup" ? "Already have an account?" : "Create an account"}
               </Button>
               <Button
                 variant="link"
                 size="sm"
-                onClick={() => setMode(mode === "reset" ? "signin" : "reset")}
+                onClick={() => { setRequestError(""); setMode(mode === "reset" ? "signin" : "reset"); }}
               >
                 {mode === "reset" ? "Back to sign in" : "Forgot password?"}
               </Button>

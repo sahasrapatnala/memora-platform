@@ -1,4 +1,9 @@
 # MEMORA Phase 2
+## Local authentication
+- [x] Diagnose actual email/password responses and hosted social-login dependence without changing accounts.
+- [x] Preserve hosted sign-in code, disable unavailable local social sign-in, and provide actionable errors.
+- [x] Test real local invalid-password requests and existing-session refresh; report unverified checks honestly.
+- [ ] Verify successful local password login and fresh hosted sign-in/sign-out — blocked: existing accounts have no password; user-controlled password setup and interactive provider access are required.
 ## 5 GB recording support
 - [x] Raise live storage, frontend and verified-registration limits without paid upgrades.
 - [x] Replace worker multipart originals with authenticated, bounded-memory cloud downloads and disk admission checks.
