@@ -24,8 +24,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { registerOriginal, recordUploadFailure } from "@/lib/memora/api.functions";
 import { useWorkspace } from "./workspace-data";
 import { FileManager } from "./file-manager";
-import { formatBytes, measuredStorage } from "@/lib/memora/integrity";
+import { formatBytes, measuredStorage, retentionApprovalIds } from "@/lib/memora/integrity";
 import { uploadOriginal, UploadPaused } from "@/lib/memora/resumable-upload";
+import { ProcessingReview } from "./processing-review";
 
 export function DataState() {
   const { user, workspace, loading, error, refresh } = useWorkspace();
@@ -288,6 +289,7 @@ export function UploadWorkspace() {
         />
         {!loading && !error && <FileManager files={saved} />}
       </section>
+      <ProcessingReview />
       {!!data?.jobs.length && <section className="content-section">
         <SectionTitle title="Processing progress" />
         {data.jobs.map(job => <div className="integration-row" key={job.id}>
@@ -572,7 +574,7 @@ export function Storage() {
   const values = measuredStorage(
     data?.files ?? [],
     data?.analytics ?? [],
-    data?.approvals.filter((a) => a.status === "Approved").map((a) => a.id),
+    retentionApprovalIds(data?.approvals ?? []),
   );
   return (
     <Shell title="Storage Optimization">

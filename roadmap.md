@@ -1,4 +1,8 @@
 # MEMORA Phase 2
+## Processing approval foundation
+- [x] Add atomic reviewer decisions with a job-linked audit separate from retention authorization.
+- [x] Add review controls and a non-executing, approval-gated dispatch contract; test decision rules.
+- [ ] Verify real review and refresh persistence — blocked: current authenticated account has no workspace, original or job; no substitute records were created.
 ## Secure processing requests
 - [x] Apply owner-scoped INSERT access, Uploaded-file enforcement and concurrent active-job uniqueness without changing storage.
 - [x] Add authenticated request operation with duplicate recovery and security tests; leave Python dispatch disabled.

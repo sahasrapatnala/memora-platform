@@ -1,7 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { storageSavings, validateFile } from "@/lib/memora/data";
-import { measuredStorage } from "@/lib/memora/integrity";
+import { measuredStorage, retentionApprovalIds } from "@/lib/memora/integrity";
 describe("MEMORA accuracy rules", () => {
+  it("never treats processing approval as retention authorization", () => {
+    expect(retentionApprovalIds([
+      { id: "processing", status: "Approved", processing_job_id: "job" },
+      { id: "retention", status: "Approved", processing_job_id: null },
+    ])).toEqual(["retention"]);
+  });
   it("computes potential savings as original minus retained package", () =>
     expect(storageSavings(1000, 200).savings).toBe(800));
   it("computes percentage relative to original", () =>

@@ -64,6 +64,7 @@ export type Database = {
           created_at: string
           file_id: string | null
           id: string
+          processing_job_id: string | null
           reason: string
           status: string
           user_id: string
@@ -73,6 +74,7 @@ export type Database = {
           created_at?: string
           file_id?: string | null
           id?: string
+          processing_job_id?: string | null
           reason: string
           status?: string
           user_id?: string
@@ -82,6 +84,7 @@ export type Database = {
           created_at?: string
           file_id?: string | null
           id?: string
+          processing_job_id?: string | null
           reason?: string
           status?: string
           user_id?: string
@@ -93,6 +96,13 @@ export type Database = {
             columns: ["file_id"]
             isOneToOne: false
             referencedRelation: "files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "approval_requests_processing_job_id_fkey"
+            columns: ["processing_job_id"]
+            isOneToOne: false
+            referencedRelation: "processing_jobs"
             referencedColumns: ["id"]
           },
           {
@@ -985,6 +995,20 @@ export type Database = {
     }
     Functions: {
       create_workspace: { Args: { workspace_name: string }; Returns: string }
+      decide_processing_job: {
+        Args: {
+          p_decision: string
+          p_job: string
+          p_reason: string
+          p_workspace: string
+        }
+        Returns: {
+          decision_id: string
+          job_id: string
+          job_status: string
+          reused: boolean
+        }[]
+      }
       is_workspace_member: { Args: { w: string }; Returns: boolean }
       register_verified_original: {
         Args: {

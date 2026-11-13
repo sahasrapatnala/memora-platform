@@ -1,4 +1,7 @@
 export type FileMeasurement = { id: string; size_bytes: number };
+export function retentionApprovalIds(approvals: { id: string; status: string; processing_job_id: string | null }[]) {
+  return approvals.filter(a => a.status === "Approved" && a.processing_job_id === null).map(a => a.id);
+}
 export type PackageMeasurement = {
   file_id: string;
   generated_size_bytes: number;

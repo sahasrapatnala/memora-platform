@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Shell, PageHeader, SectionTitle, ViewLink } from "./shell";
 import { DataState, Empty, FileTable } from "./workspaces";
 import { useWorkspace } from "./workspace-data";
-import { measuredStorage, formatBytes } from "@/lib/memora/integrity";
+import { measuredStorage, formatBytes, retentionApprovalIds } from "@/lib/memora/integrity";
 import { exportCsv } from "@/lib/memora/export";
 export function Dashboard() {
   const { data, loading, error, workspace } = useWorkspace();
@@ -12,7 +12,7 @@ export function Dashboard() {
   const storage = measuredStorage(
     files,
     data?.analytics ?? [],
-    data?.approvals.filter((a) => a.status === "Approved").map((a) => a.id),
+    retentionApprovalIds(data?.approvals ?? []),
   );
   const processed = new Set(
     data?.jobs.filter((j) => j.status === "Completed").map((j) => j.file_id),

@@ -5,6 +5,15 @@ import { validateFile } from "./data";
 import { canDeleteOriginal } from "./file-rules";
 import { createProcessingRequest, processingRequestInput } from "./processing-request";
 import { setResponseHeader } from "@tanstack/react-start/server";
+import { reviewInput, reviewProcessing } from "./processing-review";
+
+export const decideProcessing = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(reviewInput)
+  .handler(async ({ data, context }) => {
+    setResponseHeader("Cache-Control", "no-store");
+    return reviewProcessing(context.supabase, context.userId, data);
+  });
 
 export const requestProcessing = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
