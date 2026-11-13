@@ -1,0 +1,18 @@
+CREATE TABLE public.files (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid NOT NULL DEFAULT auth.uid(), name text NOT NULL, format text NOT NULL, size_bytes bigint NOT NULL, storage_path text NOT NULL, sha256 text, status text NOT NULL DEFAULT 'Uploaded', created_at timestamptz NOT NULL DEFAULT now());
+GRANT SELECT, INSERT, UPDATE ON public.files TO authenticated;
+GRANT ALL ON public.files TO service_role;
+ALTER TABLE public.files ENABLE ROW LEVEL SECURITY;
+CREATE POLICY files_owner ON public.files FOR ALL TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+CREATE INDEX files_owner_hash ON public.files(user_id, sha256);
+CREATE TABLE public.processing_jobs (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), file_id uuid NOT NULL REFERENCES public.files(id), user_id uuid NOT NULL DEFAULT auth.uid(), status text NOT NULL DEFAULT 'Awaiting Review', stage text NOT NULL DEFAULT 'Processing service not connected', progress integer, error text, created_at timestamptz NOT NULL DEFAULT now());
+GRANT SELECT, INSERT ON public.processing_jobs TO authenticated;
+GRANT ALL ON public.processing_jobs TO service_role;
+ALTER TABLE public.processing_jobs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY jobs_owner ON public.processing_jobs FOR ALL TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid() AND EXISTS (SELECT 1 FROM public.files WHERE id = file_id AND user_id = auth.uid()));
+CREATE TABLE public.approval_requests (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid NOT NULL DEFAULT auth.uid(), file_id uuid REFERENCES public.files(id), reason text NOT NULL, status text NOT NULL DEFAULT 'Pending', created_at timestamptz NOT NULL DEFAULT now());
+GRANT SELECT, INSERT ON public.approval_requests TO authenticated;
+GRANT ALL ON public.approval_requests TO service_role;
+ALTER TABLE public.approval_requests ENABLE ROW LEVEL SECURITY;
+CREATE POLICY approvals_owner ON public.approval_requests FOR ALL TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+CREATE POLICY originals_insert ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'original-files' AND (storage.foldername(name))[1] = auth.uid()::text);
+CREATE POLICY originals_read ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'original-files' AND (storage.foldername(name))[1] = auth.uid()::text);

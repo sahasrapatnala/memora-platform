@@ -28,3 +28,9 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+## Application architecture
+- Keep content pages in TanStack file routes and reusable MEMORA workspaces in components; parent pages render Outlet for child analysis views.
+- Separate illustrative records from user-owned Cloud records; unavailable processors must never create successful job results.
+- Secure originals in a private owner-scoped bucket, verify their bytes and SHA-256 in authenticated server functions, and retain them without deletion controls.
+- Run computational video and document extraction in an independent Python service, never in the browser or Worker runtime.
