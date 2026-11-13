@@ -7,9 +7,9 @@ export function storageSavings(original: number, retained: number) {
   return { savings, percentage: original > 0 ? (savings / original) * 100 : 0 };
 }
 export function validateFile(name: string, size: number) {
-  if (!/\.(mp4|mov|mkv|avi|pdf|pptx|docx)$/i.test(name)) return "Unsupported file format";
+  if (!/\.(mp4|mov|pdf|pptx|docx)$/i.test(name)) return "Unsupported file format";
   if (size > 50 * 1024 * 1024) return "The current secure upload limit is 50 MB";
-  if (size === 0) return "The file is empty";
+  if (size <= 0) return "The file is empty";
   return null;
 }
 export const pageMeta = (title: string, description: string) => ({

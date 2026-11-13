@@ -10,21 +10,27 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
-import { Route as DocumentsRouteImport } from './routes/documents'
-import { Route as DuplicatesRouteImport } from './routes/duplicates'
-import { Route as KnowledgeRouteImport } from './routes/knowledge'
-import { Route as OffboardingRouteImport } from './routes/offboarding'
-import { Route as ReportsRouteImport } from './routes/reports'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as StorageRouteImport } from './routes/storage'
-import { Route as UploadRouteImport } from './routes/upload'
-import { Route as VideosRouteImport } from './routes/videos'
-import { Route as VideosIdRouteImport } from './routes/videos.$id'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as AuthenticatedDocumentsRouteImport } from './routes/_authenticated/documents'
+import { Route as AuthenticatedDuplicatesRouteImport } from './routes/_authenticated/duplicates'
+import { Route as AuthenticatedKnowledgeRouteImport } from './routes/_authenticated/knowledge'
+import { Route as AuthenticatedOffboardingRouteImport } from './routes/_authenticated/offboarding'
+import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticated/reports'
+import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
+import { Route as AuthenticatedStorageRouteImport } from './routes/_authenticated/storage'
+import { Route as AuthenticatedUploadRouteImport } from './routes/_authenticated/upload'
+import { Route as AuthenticatedVideosRouteImport } from './routes/_authenticated/videos'
+import { Route as AuthenticatedVideosIdRouteImport } from './routes/_authenticated/videos.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -32,105 +38,116 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DocumentsRoute = DocumentsRouteImport.update({
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedDocumentsRoute = AuthenticatedDocumentsRouteImport.update({
   id: '/documents',
   path: '/documents',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const DuplicatesRoute = DuplicatesRouteImport.update({
+const AuthenticatedDuplicatesRoute = AuthenticatedDuplicatesRouteImport.update({
   id: '/duplicates',
   path: '/duplicates',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const KnowledgeRoute = KnowledgeRouteImport.update({
+const AuthenticatedKnowledgeRoute = AuthenticatedKnowledgeRouteImport.update({
   id: '/knowledge',
   path: '/knowledge',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const OffboardingRoute = OffboardingRouteImport.update({
-  id: '/offboarding',
-  path: '/offboarding',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ReportsRoute = ReportsRouteImport.update({
+const AuthenticatedOffboardingRoute =
+  AuthenticatedOffboardingRouteImport.update({
+    id: '/offboarding',
+    path: '/offboarding',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedReportsRoute = AuthenticatedReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const SettingsRoute = SettingsRouteImport.update({
+const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const StorageRoute = StorageRouteImport.update({
+const AuthenticatedStorageRoute = AuthenticatedStorageRouteImport.update({
   id: '/storage',
   path: '/storage',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const UploadRoute = UploadRouteImport.update({
+const AuthenticatedUploadRoute = AuthenticatedUploadRouteImport.update({
   id: '/upload',
   path: '/upload',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const VideosRoute = VideosRouteImport.update({
+const AuthenticatedVideosRoute = AuthenticatedVideosRouteImport.update({
   id: '/videos',
   path: '/videos',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const VideosIdRoute = VideosIdRouteImport.update({
+const AuthenticatedVideosIdRoute = AuthenticatedVideosIdRouteImport.update({
   id: '/$id',
   path: '/$id',
-  getParentRoute: () => VideosRoute,
+  getParentRoute: () => AuthenticatedVideosRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/documents': typeof DocumentsRoute
-  '/duplicates': typeof DuplicatesRoute
-  '/knowledge': typeof KnowledgeRoute
-  '/offboarding': typeof OffboardingRoute
-  '/reports': typeof ReportsRoute
-  '/settings': typeof SettingsRoute
-  '/storage': typeof StorageRoute
-  '/upload': typeof UploadRoute
-  '/videos': typeof VideosRouteWithChildren
-  '/videos/$id': typeof VideosIdRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/documents': typeof AuthenticatedDocumentsRoute
+  '/duplicates': typeof AuthenticatedDuplicatesRoute
+  '/knowledge': typeof AuthenticatedKnowledgeRoute
+  '/offboarding': typeof AuthenticatedOffboardingRoute
+  '/reports': typeof AuthenticatedReportsRoute
+  '/settings': typeof AuthenticatedSettingsRoute
+  '/storage': typeof AuthenticatedStorageRoute
+  '/upload': typeof AuthenticatedUploadRoute
+  '/videos': typeof AuthenticatedVideosRouteWithChildren
+  '/videos/$id': typeof AuthenticatedVideosIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/documents': typeof DocumentsRoute
-  '/duplicates': typeof DuplicatesRoute
-  '/knowledge': typeof KnowledgeRoute
-  '/offboarding': typeof OffboardingRoute
-  '/reports': typeof ReportsRoute
-  '/settings': typeof SettingsRoute
-  '/storage': typeof StorageRoute
-  '/upload': typeof UploadRoute
-  '/videos': typeof VideosRouteWithChildren
-  '/videos/$id': typeof VideosIdRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/documents': typeof AuthenticatedDocumentsRoute
+  '/duplicates': typeof AuthenticatedDuplicatesRoute
+  '/knowledge': typeof AuthenticatedKnowledgeRoute
+  '/offboarding': typeof AuthenticatedOffboardingRoute
+  '/reports': typeof AuthenticatedReportsRoute
+  '/settings': typeof AuthenticatedSettingsRoute
+  '/storage': typeof AuthenticatedStorageRoute
+  '/upload': typeof AuthenticatedUploadRoute
+  '/videos': typeof AuthenticatedVideosRouteWithChildren
+  '/videos/$id': typeof AuthenticatedVideosIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
-  '/documents': typeof DocumentsRoute
-  '/duplicates': typeof DuplicatesRoute
-  '/knowledge': typeof KnowledgeRoute
-  '/offboarding': typeof OffboardingRoute
-  '/reports': typeof ReportsRoute
-  '/settings': typeof SettingsRoute
-  '/storage': typeof StorageRoute
-  '/upload': typeof UploadRoute
-  '/videos': typeof VideosRouteWithChildren
-  '/videos/$id': typeof VideosIdRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/_authenticated/documents': typeof AuthenticatedDocumentsRoute
+  '/_authenticated/duplicates': typeof AuthenticatedDuplicatesRoute
+  '/_authenticated/knowledge': typeof AuthenticatedKnowledgeRoute
+  '/_authenticated/offboarding': typeof AuthenticatedOffboardingRoute
+  '/_authenticated/reports': typeof AuthenticatedReportsRoute
+  '/_authenticated/settings': typeof AuthenticatedSettingsRoute
+  '/_authenticated/storage': typeof AuthenticatedStorageRoute
+  '/_authenticated/upload': typeof AuthenticatedUploadRoute
+  '/_authenticated/videos': typeof AuthenticatedVideosRouteWithChildren
+  '/_authenticated/videos/$id': typeof AuthenticatedVideosIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/auth'
+    | '/reset-password'
     | '/documents'
     | '/duplicates'
     | '/knowledge'
@@ -145,6 +162,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/reset-password'
     | '/documents'
     | '/duplicates'
     | '/knowledge'
@@ -158,31 +176,26 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/_authenticated'
     | '/auth'
-    | '/documents'
-    | '/duplicates'
-    | '/knowledge'
-    | '/offboarding'
-    | '/reports'
-    | '/settings'
-    | '/storage'
-    | '/upload'
-    | '/videos'
-    | '/videos/$id'
+    | '/reset-password'
+    | '/_authenticated/documents'
+    | '/_authenticated/duplicates'
+    | '/_authenticated/knowledge'
+    | '/_authenticated/offboarding'
+    | '/_authenticated/reports'
+    | '/_authenticated/settings'
+    | '/_authenticated/storage'
+    | '/_authenticated/upload'
+    | '/_authenticated/videos'
+    | '/_authenticated/videos/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
-  DocumentsRoute: typeof DocumentsRoute
-  DuplicatesRoute: typeof DuplicatesRoute
-  KnowledgeRoute: typeof KnowledgeRoute
-  OffboardingRoute: typeof OffboardingRoute
-  ReportsRoute: typeof ReportsRoute
-  SettingsRoute: typeof SettingsRoute
-  StorageRoute: typeof StorageRoute
-  UploadRoute: typeof UploadRoute
-  VideosRoute: typeof VideosRouteWithChildren
+  ResetPasswordRoute: typeof ResetPasswordRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -194,6 +207,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth': {
       id: '/auth'
       path: '/auth'
@@ -201,102 +221,129 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/documents': {
-      id: '/documents'
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/documents': {
+      id: '/_authenticated/documents'
       path: '/documents'
       fullPath: '/documents'
-      preLoaderRoute: typeof DocumentsRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedDocumentsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/duplicates': {
-      id: '/duplicates'
+    '/_authenticated/duplicates': {
+      id: '/_authenticated/duplicates'
       path: '/duplicates'
       fullPath: '/duplicates'
-      preLoaderRoute: typeof DuplicatesRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedDuplicatesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/knowledge': {
-      id: '/knowledge'
+    '/_authenticated/knowledge': {
+      id: '/_authenticated/knowledge'
       path: '/knowledge'
       fullPath: '/knowledge'
-      preLoaderRoute: typeof KnowledgeRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedKnowledgeRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/offboarding': {
-      id: '/offboarding'
+    '/_authenticated/offboarding': {
+      id: '/_authenticated/offboarding'
       path: '/offboarding'
       fullPath: '/offboarding'
-      preLoaderRoute: typeof OffboardingRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedOffboardingRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/reports': {
-      id: '/reports'
+    '/_authenticated/reports': {
+      id: '/_authenticated/reports'
       path: '/reports'
       fullPath: '/reports'
-      preLoaderRoute: typeof ReportsRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedReportsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/settings': {
-      id: '/settings'
+    '/_authenticated/settings': {
+      id: '/_authenticated/settings'
       path: '/settings'
       fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedSettingsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/storage': {
-      id: '/storage'
+    '/_authenticated/storage': {
+      id: '/_authenticated/storage'
       path: '/storage'
       fullPath: '/storage'
-      preLoaderRoute: typeof StorageRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedStorageRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/upload': {
-      id: '/upload'
+    '/_authenticated/upload': {
+      id: '/_authenticated/upload'
       path: '/upload'
       fullPath: '/upload'
-      preLoaderRoute: typeof UploadRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedUploadRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/videos': {
-      id: '/videos'
+    '/_authenticated/videos': {
+      id: '/_authenticated/videos'
       path: '/videos'
       fullPath: '/videos'
-      preLoaderRoute: typeof VideosRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedVideosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/videos/$id': {
-      id: '/videos/$id'
+    '/_authenticated/videos/$id': {
+      id: '/_authenticated/videos/$id'
       path: '/$id'
       fullPath: '/videos/$id'
-      preLoaderRoute: typeof VideosIdRouteImport
-      parentRoute: typeof VideosRoute
+      preLoaderRoute: typeof AuthenticatedVideosIdRouteImport
+      parentRoute: typeof AuthenticatedVideosRoute
     }
   }
 }
 
-interface VideosRouteChildren {
-  VideosIdRoute: typeof VideosIdRoute
+interface AuthenticatedVideosRouteChildren {
+  AuthenticatedVideosIdRoute: typeof AuthenticatedVideosIdRoute
 }
 
-const VideosRouteChildren: VideosRouteChildren = {
-  VideosIdRoute: VideosIdRoute,
+const AuthenticatedVideosRouteChildren: AuthenticatedVideosRouteChildren = {
+  AuthenticatedVideosIdRoute: AuthenticatedVideosIdRoute,
 }
 
-const VideosRouteWithChildren =
-  VideosRoute._addFileChildren(VideosRouteChildren)
+const AuthenticatedVideosRouteWithChildren =
+  AuthenticatedVideosRoute._addFileChildren(AuthenticatedVideosRouteChildren)
+
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedDocumentsRoute: typeof AuthenticatedDocumentsRoute
+  AuthenticatedDuplicatesRoute: typeof AuthenticatedDuplicatesRoute
+  AuthenticatedKnowledgeRoute: typeof AuthenticatedKnowledgeRoute
+  AuthenticatedOffboardingRoute: typeof AuthenticatedOffboardingRoute
+  AuthenticatedReportsRoute: typeof AuthenticatedReportsRoute
+  AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
+  AuthenticatedStorageRoute: typeof AuthenticatedStorageRoute
+  AuthenticatedUploadRoute: typeof AuthenticatedUploadRoute
+  AuthenticatedVideosRoute: typeof AuthenticatedVideosRouteWithChildren
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedDocumentsRoute: AuthenticatedDocumentsRoute,
+  AuthenticatedDuplicatesRoute: AuthenticatedDuplicatesRoute,
+  AuthenticatedKnowledgeRoute: AuthenticatedKnowledgeRoute,
+  AuthenticatedOffboardingRoute: AuthenticatedOffboardingRoute,
+  AuthenticatedReportsRoute: AuthenticatedReportsRoute,
+  AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
+  AuthenticatedStorageRoute: AuthenticatedStorageRoute,
+  AuthenticatedUploadRoute: AuthenticatedUploadRoute,
+  AuthenticatedVideosRoute: AuthenticatedVideosRouteWithChildren,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
-  DocumentsRoute: DocumentsRoute,
-  DuplicatesRoute: DuplicatesRoute,
-  KnowledgeRoute: KnowledgeRoute,
-  OffboardingRoute: OffboardingRoute,
-  ReportsRoute: ReportsRoute,
-  SettingsRoute: SettingsRoute,
-  StorageRoute: StorageRoute,
-  UploadRoute: UploadRoute,
-  VideosRoute: VideosRouteWithChildren,
+  ResetPasswordRoute: ResetPasswordRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -5,22 +5,23 @@ import { Shell } from "./shell";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import { toast } from "sonner";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import "@lovable.dev/cloud-auth-js/styles.css";
-export function Auth() {
-  const [mode, setMode] = useState<"signin" | "signup" | "reset" | "password">("signin");
+import { useWorkspace } from "./workspace-data";
+import { useQueryClient } from "@tanstack/react-query";
+export function Auth({ recovery = false }: { recovery?: boolean }) {
+  const [mode, setMode] = useState<"signin" | "signup" | "reset" | "password">(recovery ? "password" : "signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [busy, setBusy] = useState(false);
-  const [user, setUser] = useState<string | null>(null);
+  const { user: account } = useWorkspace();
+  const user = account?.email ?? null;
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUser(data.user?.email ?? null));
-    const { data } = supabase.auth.onAuthStateChange((event, session) => {
-      setUser(session?.user.email ?? null);
-      if (event === "PASSWORD_RECOVERY") setMode("password");
-    });
-    return () => data.subscription.unsubscribe();
-  }, []);
+    if (recovery && window.location.hash.includes("type=recovery")) setMode("password");
+  }, [recovery]);
   async function submit() {
     setBusy(true);
     try {
@@ -28,10 +29,10 @@ export function Auth() {
         const r = await supabase.auth.updateUser({ password });
         if (r.error) throw r.error;
         toast.success("Password updated");
-        setMode("signin");
+        void navigate({ to: "/", replace: true });
       } else if (mode === "reset") {
         const r = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: window.location.origin + "/auth",
+          redirectTo: window.location.origin + "/reset-password",
         });
         if (r.error) throw r.error;
         toast.success("Check your email for a password reset link");
@@ -39,7 +40,7 @@ export function Auth() {
         const r = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: window.location.origin + "/auth" },
+          options: { emailRedirectTo: window.location.origin, data: { display_name: displayName.trim() } },
         });
         if (r.error) throw r.error;
         toast.success(
@@ -48,11 +49,12 @@ export function Auth() {
       } else {
         const r = await supabase.auth.signInWithPassword({ email, password });
         if (r.error) throw r.error;
-        setUser(r.data.user.email ?? "Signed in");
         toast.success("Signed in securely");
+        void navigate({ to: "/", replace: true });
       }
-    } catch {
-      toast.error("Could not complete this request. Check your details and try again.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      toast.error(/confirm/i.test(message) ? "Confirm your email before signing in." : /already/i.test(message) ? "An account already exists for this email." : "Could not complete this request. Check your details and try again.");
     } finally {
       setBusy(false);
     }
@@ -62,7 +64,7 @@ export function Auth() {
     setBusy(true);
     try {
       const result = await lovable.auth.signInWithOAuth(provider, {
-        redirect_uri: window.location.origin + "/auth",
+        redirect_uri: window.location.origin,
       });
       if (result.error) toast.error("Sign-in could not be completed");
     } catch {
@@ -90,7 +92,7 @@ export function Auth() {
             <p>{user}</p>
             <div className="action-row">
               <Button asChild>
-                <Link to="/upload">Upload files</Link>
+                <Link to="/">Open workspace</Link>
               </Button>
               <Button
                 variant="outline"
@@ -98,9 +100,11 @@ export function Auth() {
                 onClick={async () => {
                   setBusy(true);
                   try {
+                    await queryClient.cancelQueries();
+                    queryClient.clear();
                     const result = await supabase.auth.signOut();
                     if (result.error) throw result.error;
-                    setUser(null);
+                    void navigate({ to: "/auth", replace: true });
                   } catch {
                     toast.error("Could not sign out. Please try again.");
                   } finally {
@@ -120,6 +124,9 @@ export function Auth() {
                 void submit();
               }}
             >
+              {mode === "signup" && (
+                <Input aria-label="Display name" placeholder="Display name" maxLength={100} value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+              )}
               {mode !== "password" && (
                 <Input
                   type="email"

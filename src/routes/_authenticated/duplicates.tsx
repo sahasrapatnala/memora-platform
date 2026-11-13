@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Duplicates } from "@/components/memora/workspaces";
 import { pageMeta } from "@/lib/memora/data";
-export const Route = createFileRoute("/duplicates")({
+export const Route = createFileRoute("/_authenticated/duplicates")({
   head: () =>
     pageMeta(
       "Duplicate Detection",

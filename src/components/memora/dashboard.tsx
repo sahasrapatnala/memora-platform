@@ -85,7 +85,7 @@ export function Dashboard() {
                     <ShieldCheck size={17} />
                     <div>
                       <strong>{a.action}</strong>
-                      <p>{files.find((f) => f.id === a.file_id)?.name}</p>
+                      <p>{a.file_name ?? files.find((f) => f.id === a.file_id)?.name}</p>
                       <small>{new Date(a.created_at).toLocaleString()}</small>
                     </div>
                   </div>

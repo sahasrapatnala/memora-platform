@@ -1,8 +1,12 @@
-# MEMORA correction
+# MEMORA Phase 2
+- [x] Verify Cloud schema and permissions; implement profiles and reliable upload registration/activity.
+- [x] Protect application pages; implement sign-in, sign-out, recovery and session persistence.
+- [x] Add persistent file search, format filters, details and explicitly confirmed owner deletion.
+- [x] Test validation, owner-confirmation rules and signed-out route access; report verified results.
 - [x] Remove fabricated records and metrics from every normal page.
 - [x] Prepare workspace-scoped core records and private asset storage.
 - [x] Connect real data, workspace settings, upload and exports; audit all controls.
 - [x] Apply restrained enterprise presentation and verify desktop/mobile.
 - [x] Test integrity rules and public empty states; deliver functionality audit.
-- [ ] Verify signed-in uploads, workspace/profile saves, access isolation and refresh persistence — no application account exists; user must sign in.
+- [ ] Verify account creation/sign-in, PDF/PPTX/MP4 uploads, workspace/profile saves, second-user access isolation, deletion and refresh persistence — no confirmed application account exists; user must create and confirm one.
 - [ ] Live extraction, diarization, slide detection, similarity and inventory analysis — requires deployed independent Python processing service and model access.

@@ -8,4 +8,4 @@ Video requests deliberately return 503 rather than fabricated results. Full vide
 
 Integration contract: an authenticated application dispatcher should issue a short-lived source download URL and job ID to the service; the service should return source-linked transcript segments, stable anonymous speaker turns, actual frames, slide intervals, and byte measurements. A signed callback must validate job ownership before recording outputs. Do not expose processing credentials or storage service credentials to the browser.
 
-The web app contains a deliberately separated illustrative dataset. Uploads store real originals and hashes with an Awaiting Review job; uploading never creates a fake completed transcript.
+The web app contains no demo fallback. Uploads store real originals and verified hashes with Uploaded status; this phase creates no processing jobs or invented processing events. Processing dispatch and callback persistence remain future work.

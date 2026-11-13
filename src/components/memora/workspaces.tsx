@@ -21,8 +21,9 @@ import { Shell, PageHeader, SectionTitle, Status, FileIcon } from "./shell";
 import { validateFile, stamp } from "@/lib/memora/data";
 import { exportCsv, download } from "@/lib/memora/export";
 import { supabase } from "@/integrations/supabase/client";
-import { registerOriginal } from "@/lib/memora/api.functions";
+import { registerOriginal, recordUploadFailure } from "@/lib/memora/api.functions";
 import { useWorkspace } from "./workspace-data";
+import { FileManager } from "./file-manager";
 import { formatBytes, measuredStorage } from "@/lib/memora/integrity";
 
 export function DataState() {
@@ -143,6 +144,9 @@ export function UploadWorkspace() {
   const signedIn = !!user;
   const input = useRef<HTMLInputElement>(null);
   const register = useServerFn(registerOriginal);
+  const logFailure = useServerFn(recordUploadFailure);
+  const [uploadStates, setUploadStates] = useState<Record<string, string>>({});
+  const paths = useRef(new Map<File, string>());
   const select = (files: FileList | null) => {
     if (!files) return;
     const valid: File[] = [];
@@ -164,25 +168,33 @@ export function UploadWorkspace() {
         toast.info("Sign in to securely store your files");
         return;
       }
+      const failed: File[] = [];
       for (const file of selected) {
-        const path = `${user.id}/${crypto.randomUUID()}/${file.name}`;
-        const stored = await supabase.storage.from("original-files").upload(path, file);
-        if (stored.error) throw new Error("Secure upload failed");
-        await register({
-          data: {
-            workspaceId: workspace.id,
-            path,
-            name: file.name,
-            format: file.name.split(".").pop()?.toUpperCase() ?? "",
-            size: file.size,
-          },
-        });
+        const key = `${file.name}-${file.size}`;
+        try {
+          let path = paths.current.get(file);
+          if (!path) {
+            path = `${user.id}/${crypto.randomUUID()}/${file.name}`;
+            setUploadStates((prev) => ({ ...prev, [key]: "Uploading to private storage…" }));
+            const stored = await supabase.storage.from("original-files").upload(path, file);
+            if (stored.error) throw new Error("Secure upload failed");
+            paths.current.set(file, path);
+          }
+          setUploadStates((prev) => ({ ...prev, [key]: "Verifying and saving metadata…" }));
+          await register({ data: { workspaceId: workspace.id, path, name: file.name, format: file.name.split(".").pop()?.toUpperCase() ?? "", size: file.size } });
+          paths.current.delete(file);
+          setUploadStates((prev) => ({ ...prev, [key]: "Uploaded" }));
+        } catch (error) {
+          failed.push(file);
+          setUploadStates((prev) => ({ ...prev, [key]: paths.current.has(file) ? "Stored; registration failed. Retry verification." : "Upload failed. Retry." }));
+          toast.error(`${file.name}: ${error instanceof Error ? error.message : "Upload failed"}`);
+          try { await logFailure({ data: { workspaceId: workspace.id, name: file.name.slice(0,255) } }); }
+          catch { toast.error("Upload failure could not be added to activity history."); }
+        }
       }
-      setSelected([]);
+      setSelected(failed);
       await refresh();
-      toast.success(
-        "Originals securely saved and hashed. Processing is awaiting service connection.",
-      );
+      if (!failed.length) toast.success("Originals securely saved and hashed. No processing requested.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Upload failed");
     } finally {
@@ -219,14 +231,14 @@ export function UploadWorkspace() {
           type="file"
           multiple
           hidden
-          accept=".mp4,.mov,.mkv,.avi,.pdf,.pptx,.docx"
+          accept=".mp4,.mov,.pdf,.pptx,.docx"
           onChange={(e) => select(e.target.files)}
         />
         <Button onClick={() => input.current?.click()}>
           <Upload />
           Browse files
         </Button>
-        <small>MP4, MOV, MKV, AVI, PDF, PPTX, DOCX · Current upload limit: 50 MB per file</small>
+        <small>MP4, MOV, PDF, PPTX, DOCX · Current upload limit: 50 MB per file</small>
       </div>
       {selected.length > 0 && (
         <section className="content-section">
@@ -235,6 +247,7 @@ export function UploadWorkspace() {
             <div className="integration-row" key={`${f.name}-${i}`}>
               <span>
                 {f.name} · {(f.size / 1024 / 1024).toFixed(2)} MB
+                <span role="status">{uploadStates[`${f.name}-${f.size}`] ?? "Ready"}</span>
               </span>
               <Button
                 variant="ghost"
@@ -261,44 +274,7 @@ export function UploadWorkspace() {
           title="Your saved originals"
           description="Actual files · stored securely, never automatically deleted"
         />
-        {!loading && !error && saved.length === 0 ? (
-          <div className="empty-state">
-            <Files />
-            <h2>No originals uploaded yet</h2>
-            <p>
-              {signedIn
-                ? "Your securely uploaded files will appear here."
-                : "Sign in to view and upload your originals."}
-            </p>
-          </div>
-        ) : (
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>ORIGINAL FILE</th>
-                  <th>SIZE</th>
-                  <th>STATUS</th>
-                  <th>SHA-256</th>
-                </tr>
-              </thead>
-              <tbody>
-                {saved.map((f) => (
-                  <tr key={f.id}>
-                    <td>{f.name}</td>
-                    <td>{(f.size_bytes / 1024 / 1024).toFixed(2)} MB</td>
-                    <td>
-                      <Status
-                        value={data?.jobs.find((j) => j.file_id === f.id)?.status ?? f.status}
-                      />
-                    </td>
-                    <td title={f.sha256 ?? ""}>{f.sha256?.slice(0, 20)}…</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        {!loading && !error && <FileManager files={saved} />}
       </section>
     </Shell>
   );
@@ -359,7 +335,7 @@ export function Library({ kind }: { kind: "videos" | "documents" }) {
         !error &&
         (files.length ? (
           <>
-            <FileTable files={files} />
+            <FileManager files={files} />
             {kind === "videos" &&
               files.map((f) => (
                 <div className="integration-row" key={f.id}>
@@ -776,8 +752,7 @@ export function SettingsWorkspace() {
           <section className="settings-group">
             <h2>Retention & approvals</h2>
             <p>
-              Human approval is mandatory. Originals are preserved; deletion controls are
-              unavailable.
+              Originals are never automatically deleted. Only their owner can confirm permanent deletion; activity history is retained.
             </p>
           </section>
         </div>

@@ -25,6 +25,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { useWorkspace } from "./workspace-data";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
 const nav = [
   ["Overview", "/", LayoutDashboard],
   ["Upload & Process", "/upload", Upload],
@@ -43,6 +45,7 @@ export function Shell({ children, title }: { children: ReactNode; title: string 
   const [mobile, setMobile] = useState(false);
   const [search, setSearch] = useState("");
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const path = useLocation().pathname;
   return (
     <div className={`app-shell ${collapsed ? "is-collapsed" : ""}`}>
@@ -162,6 +165,13 @@ export function Shell({ children, title }: { children: ReactNode; title: string 
                 <UserRound />
               </Link>
             </Button>
+            {user && <Button variant="outline" size="sm" onClick={async () => {
+              await queryClient.cancelQueries();
+              queryClient.clear();
+              const result = await supabase.auth.signOut();
+              if (result.error) toast.error("Could not sign out. Please try again.");
+              else navigate({ to: "/auth", replace: true });
+            }}>Sign out</Button>}
           </div>
         </header>
         <main>{children}</main>

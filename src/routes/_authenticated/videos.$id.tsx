@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { VideoDetail } from "@/components/memora/workspaces";
 import { pageMeta } from "@/lib/memora/data";
-export const Route = createFileRoute("/videos/$id")({
+export const Route = createFileRoute("/_authenticated/videos/$id")({
   head: () =>
     pageMeta(
       "Visual Transcript",
-      "Connected sample speakers, timestamps and video source references.",
+      "Source-linked speakers, timestamps and original recording references.",
     ),
   component: Page,
 });

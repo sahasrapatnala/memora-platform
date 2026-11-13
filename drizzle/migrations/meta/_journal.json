@@ -22,6 +22,20 @@
       "when": 1794572655901,
       "tag": "0002_private_generated_asset_access",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794573603196,
+      "tag": "0003_phase2_verified_uploads_and_profiles",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794573620834,
+      "tag": "0004_phase2_confirmed_deletion_audit",
+      "breakpoints": true
     }
   ]
 }

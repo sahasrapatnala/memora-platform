@@ -7,7 +7,7 @@ describe("MEMORA accuracy rules", () => {
   it("computes percentage relative to original", () =>
     expect(storageSavings(1000, 200).percentage).toBe(80));
   it("accepts all specified input formats", () => {
-    for (const format of ["mp4", "mov", "mkv", "avi", "pdf", "pptx", "docx"])
+    for (const format of ["mp4", "mov", "pdf", "pptx", "docx"])
       expect(validateFile(`source.${format}`, 100)).toBeNull();
   });
   it("rejects unsupported formats", () =>

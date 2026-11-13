@@ -33,5 +33,7 @@ use the editor.
 - Keep content pages in TanStack file routes and reusable MEMORA workspaces in components; parent pages render Outlet for child analysis views.
 - Normal workspaces read only membership-scoped Cloud records through a shared query provider; no demo fallback, because empty and failed reads must remain honest.
 - Processor outputs are client-read-only; verified package bytes and approved retention receipts drive distinct savings totals, because uploads are not successful analysis.
-- Secure originals in a private owner-scoped bucket, verify their bytes and SHA-256 in authenticated server functions, and retain them without deletion controls.
+- Secure originals in a private owner-scoped bucket; server-verify bytes and SHA-256 before atomic metadata/audit registration, so failed uploads cannot masquerade as registered originals.
+- Owner-confirmed deletion removes storage bytes through authenticated server functions and retains deleted metadata/audit history, so traceability survives deletion.
+- Application pages live under the client-only authenticated layout; the public home shows account access while signed out, so private workspaces never appear before session validation.
 - Run computational video and document extraction in an independent Python service, never in the browser or Worker runtime.

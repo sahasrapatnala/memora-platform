@@ -1,9 +1,12 @@
 # MEMORA correction audit
 
+## Phase 2 update
+See `phase2-report.md` for current verification and blockers. Application pages now require sign-in; uploads register verified bytes and upload activity atomically without creating processing jobs. Owner-confirmed storage deletion retains metadata and activity history. File lists support filename/type filters, details, and private original access. The earlier checks below describe the previous correction, not signed-in Phase 2 verification.
+
 ## Corrected
 - Removed all fabricated metrics, charts, files, matches, transcripts, speakers, reports, activities, storage quotas and user identities from the normal experience. No demo fallback is enabled.
 - Overview and libraries read workspace-scoped Cloud records. Loading and failed reads do not display invented totals. No charts render without measurements.
-- Potential savings require verified generated-package sizes. Reclaimed storage requires a verified retention receipt linked to an approved request. Originals have no deletion controls.
+- Potential savings require verified generated-package sizes. Reclaimed storage requires a verified retention receipt linked to an approved request. Originals now have explicitly confirmed owner-only deletion; no automatic deletion exists.
 - Replaced decorative overview artwork with restrained enterprise tables, neutral surfaces, blue actions and readable empty states.
 
 ## Database and storage verified

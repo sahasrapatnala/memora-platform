@@ -19,6 +19,7 @@ export type Database = {
           action: string
           created_at: string
           file_id: string | null
+          file_name: string | null
           id: string
           user_id: string
           workspace_id: string
@@ -27,6 +28,7 @@ export type Database = {
           action: string
           created_at?: string
           file_id?: string | null
+          file_name?: string | null
           id?: string
           user_id: string
           workspace_id: string
@@ -35,6 +37,7 @@ export type Database = {
           action?: string
           created_at?: string
           file_id?: string | null
+          file_name?: string | null
           id?: string
           user_id?: string
           workspace_id?: string
@@ -983,6 +986,22 @@ export type Database = {
     Functions: {
       create_workspace: { Args: { workspace_name: string }; Returns: string }
       is_workspace_member: { Args: { w: string }; Returns: boolean }
+      register_verified_original: {
+        Args: {
+          p_format: string
+          p_hash: string
+          p_name: string
+          p_path: string
+          p_size: number
+          p_user: string
+          p_workspace: string
+        }
+        Returns: string
+      }
+      set_original_deletion: {
+        Args: { p_file: string; p_state: string; p_user: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

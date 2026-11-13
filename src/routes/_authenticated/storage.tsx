@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Storage } from "@/components/memora/workspaces";
 import { pageMeta } from "@/lib/memora/data";
-export const Route = createFileRoute("/storage")({
+export const Route = createFileRoute("/_authenticated/storage")({
   head: () =>
     pageMeta(
       "Storage Optimization",

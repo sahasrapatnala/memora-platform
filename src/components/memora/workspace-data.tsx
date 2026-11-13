@@ -2,9 +2,11 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { useRouter } from "@tanstack/react-router";
 
 function useWorkspaceState() {
   const client = useQueryClient();
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
   const [selected, setSelected] = useState("");
@@ -19,9 +21,10 @@ function useWorkspaceState() {
       setUser(session?.user ?? null);
       if (event === "SIGNED_OUT") client.clear();
       else void client.invalidateQueries();
+      void router.invalidate();
     });
     return () => data.subscription.unsubscribe();
-  }, [client]);
+  }, [client, router]);
   const workspaceQuery = useQuery({
     queryKey: ["workspaces", user?.id],
     enabled: !!user,
@@ -57,6 +60,7 @@ function useWorkspaceState() {
           .from("files")
           .select()
           .eq("workspace_id", workspace.id)
+          .neq("status", "Deleted")
           .order("created_at", { ascending: false }),
         supabase
           .from("processing_jobs")
@@ -130,7 +134,7 @@ function useWorkspaceState() {
     refresh,
     data: user && workspace ? records.data : undefined,
     loading: !ready || (!!user && workspaceQuery.isPending) || (!!workspace && records.isPending),
-    error: workspaceQuery.error ?? records.error,
+    error: user ? workspaceQuery.error ?? records.error : null,
   };
 }
 const WorkspaceContext = createContext<ReturnType<typeof useWorkspaceState> | null>(null);
