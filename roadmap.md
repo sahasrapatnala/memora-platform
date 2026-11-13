@@ -1,4 +1,9 @@
 # MEMORA Phase 2
+## Large-file storage compatibility
+- [ ] Audit live storage limits, PostgreSQL identity and resumable protocol.
+- [ ] Implement resumable uploads and bounded-memory original verification without design changes or paid upgrades.
+- [ ] Verify interruption/resumption and report remaining large-file and deployment constraints.
+
 - [x] Verify Cloud schema and permissions; implement profiles and reliable upload registration/activity.
 - [x] Protect application pages; implement sign-in, sign-out, recovery and session persistence.
 - [x] Add persistent file search, format filters, details and explicitly confirmed owner deletion.
