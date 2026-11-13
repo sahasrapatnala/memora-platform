@@ -249,7 +249,7 @@ export function UploadWorkspace() {
           <Upload />
           Browse files
         </Button>
-        <small>MP4, MOV, PDF, PPTX, DOCX · Current upload limit: 2 GB per file</small>
+        <small>MP4, MOV, PDF, PPTX, DOCX · Current upload limit: 5 GiB per file</small>
       </div>
       {selected.length > 0 && (
         <section className="content-section">
@@ -288,6 +288,13 @@ export function UploadWorkspace() {
         />
         {!loading && !error && <FileManager files={saved} />}
       </section>
+      {!!data?.jobs.length && <section className="content-section">
+        <SectionTitle title="Processing progress" />
+        {data.jobs.map(job => <div className="integration-row" key={job.id}>
+          <span>{saved.find(file => file.id === job.file_id)?.name ?? "Original"}</span>
+          <span role="status">{job.stage} · {job.status}{job.progress == null ? "" : ` · ${job.progress}%`}{job.error ? ` · ${job.error}` : ""}</span>
+        </div>)}
+      </section>}
     </Shell>
   );
 }

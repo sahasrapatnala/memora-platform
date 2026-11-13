@@ -38,3 +38,4 @@ use the editor.
 - Application pages live under the client-only authenticated layout; the public home shows account access while signed out, so private workspaces never appear before session validation.
 - Run computational video and document extraction in an independent Python service, never in the browser or Worker runtime.
 - Upload originals directly with TUS and user/workspace-scoped persisted checkpoints; stream server-side SHA-256 verification before registration to avoid whole-file memory allocation.
+- Python processing accepts only private expiring Cloud source descriptors, streams originals to capacity-checked scratch disk and emits measured download events; it never proxies multipart originals or reports unimplemented video analysis as successful.

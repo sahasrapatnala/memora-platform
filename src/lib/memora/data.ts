@@ -10,7 +10,7 @@ export function storageSavings(original: number, retained: number) {
 }
 export function validateFile(name: string, size: number) {
   if (!/\.(mp4|mov|pdf|pptx|docx)$/i.test(name)) return "Unsupported file format";
-  if (!Number.isSafeInteger(size) || size > MAX_ORIGINAL_BYTES) return "The current secure upload limit is 2 GB";
+  if (!Number.isSafeInteger(size) || size > MAX_ORIGINAL_BYTES) return "The current secure upload limit is 5 GiB";
   if (size <= 0) return "The file is empty";
   return null;
 }

@@ -1,4 +1,11 @@
 # MEMORA Phase 2
+## 5 GB recording support
+- [x] Raise live storage, frontend and verified-registration limits without paid upgrades.
+- [x] Replace worker multipart originals with authenticated, bounded-memory cloud downloads and disk admission checks.
+- [x] Verify actual 210 MiB private retrieval with the worker implementation and authenticated local endpoint; preserve original bytes.
+- [ ] Test upload and retrieval of the actual 1.14 GB Ericsson original — blocked: original not supplied and absent from Cloud records.
+- [ ] Connect actual worker events to persisted processing progress — blocked: independent service deployment, private endpoint credentials and durable result ingestion are unavailable.
+- [x] Document deployment, model and missing-original blockers without claiming unverified compatibility.
 ## Large-file storage compatibility
 - [x] Audit live storage limits, PostgreSQL identity and resumable protocol.
 - [x] Implement resumable uploads and bounded-memory original verification without design changes or paid upgrades.

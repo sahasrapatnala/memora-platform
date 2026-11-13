@@ -3,6 +3,22 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { validateFile } from "./data";
 import { canDeleteOriginal } from "./file-rules";
+// Only a trusted dispatcher should forward this descriptor to the independent worker.
+export const getProcessingSource = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ fileId: z.string().uuid() }))
+  .handler(async ({ data, context }) => {
+    const result = await context.supabase.from("files").select().eq("id", data.fileId).single();
+    const file = result.data;
+    if (result.error || !file || file.user_id !== context.userId || file.status !== "Uploaded" || !file.workspace_id || !file.sha256) throw new Error("Original access required");
+    const membership = await context.supabase.from("workspace_members").select("id").eq("workspace_id", file.workspace_id).eq("user_id", context.userId).maybeSingle();
+    if (membership.error || !membership.data) throw new Error("Workspace access required");
+    const validation = validateFile(file.name, file.size_bytes);
+    if (validation) throw new Error(validation);
+    const source = await context.supabase.storage.from("original-files").createSignedUrl(file.storage_path, 7200);
+    if (source.error || !source.data) throw new Error("Could not authorize original retrieval");
+    return { file_id: file.id, workspace_id: file.workspace_id, name: file.name, source_url: source.data.signedUrl, size_bytes: file.size_bytes, sha256: file.sha256 };
+  });
 export const registerOriginal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(

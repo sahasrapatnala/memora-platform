@@ -1,9 +1,12 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { verifyStoredOriginal } from "@/lib/memora/verify-original.server";
 import { TUS_CHUNK_BYTES, uploadIdentity } from "@/lib/memora/upload-rules";
+import { validateFile } from "@/lib/memora/data";
 
 afterEach(() => vi.unstubAllGlobals());
 describe("large original verification", () => {
+  it("accepts exactly 5 GiB", () => expect(validateFile("Ericsson.mp4", 5368709120)).toBeNull());
+  it("rejects one byte above 5 GiB", () => expect(validateFile("Ericsson.mp4", 5368709121)).toBe("The current secure upload limit is 5 GiB"));
   it("uses the provider-required 6 MiB chunks", () => expect(TUS_CHUNK_BYTES).toBe(6291456));
   it("scopes resumable checkpoints to the user and workspace", () => {
     const f = { name: "Ericsson.mp4", size: 1140000000, lastModified: 123 };

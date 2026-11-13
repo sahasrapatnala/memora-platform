@@ -43,6 +43,13 @@
       "when": 1794575241639,
       "tag": "0005_large_original_registration_limit",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794577007553,
+      "tag": "0006_five_gib_original_registration",
+      "breakpoints": true
     }
   ]
 }

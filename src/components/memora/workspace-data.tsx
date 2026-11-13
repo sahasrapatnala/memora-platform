@@ -39,6 +39,7 @@ function useWorkspaceState() {
   const records = useQuery({
     queryKey: ["workspace-records", user?.id, workspace?.id],
     enabled: !!user && !!workspace,
+    refetchInterval: 5000,
     queryFn: async () => {
       if (!workspace) throw new Error("Select a workspace");
       const [
