@@ -58,10 +58,18 @@ export function Auth() {
     }
   }
   async function social(provider: "google" | "lovable") {
-    const result = await lovable.auth.signInWithOAuth(provider, {
-      redirect_uri: window.location.origin + "/auth",
-    });
-    if (result.error) toast.error("Sign-in could not be completed");
+    if (busy) return;
+    setBusy(true);
+    try {
+      const result = await lovable.auth.signInWithOAuth(provider, {
+        redirect_uri: window.location.origin + "/auth",
+      });
+      if (result.error) toast.error("Sign-in could not be completed");
+    } catch {
+      toast.error("Sign-in could not be completed");
+    } finally {
+      setBusy(false);
+    }
   }
   return (
     <Shell title="Account">
@@ -86,9 +94,18 @@ export function Auth() {
               </Button>
               <Button
                 variant="outline"
+                disabled={busy}
                 onClick={async () => {
-                  await supabase.auth.signOut();
-                  setUser(null);
+                  setBusy(true);
+                  try {
+                    const result = await supabase.auth.signOut();
+                    if (result.error) throw result.error;
+                    setUser(null);
+                  } catch {
+                    toast.error("Could not sign out. Please try again.");
+                  } finally {
+                    setBusy(false);
+                  }
                 }}
               >
                 Sign out
@@ -141,6 +158,7 @@ export function Auth() {
                 <Button
                   variant="outline"
                   className="social-button"
+                  disabled={busy}
                   onClick={() => social("google")}
                 >
                   <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
@@ -165,6 +183,7 @@ export function Auth() {
                 </Button>
                 <Button
                   className="lovable-auth-button social-button"
+                  disabled={busy}
                   onClick={() => social("lovable")}
                 >
                   Continue with Lovable

@@ -19,10 +19,12 @@ import {
   Menu,
   Command,
   ShieldCheck,
+  UserRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { useWorkspace } from "./workspace-data";
 const nav = [
   ["Overview", "/", LayoutDashboard],
   ["Upload & Process", "/upload", Upload],
@@ -36,6 +38,7 @@ const nav = [
   ["Settings", "/settings", Settings],
 ] as const;
 export function Shell({ children, title }: { children: ReactNode; title: string }) {
+  const { user, workspace, workspaces, selectWorkspace } = useWorkspace();
   const [collapsed, setCollapsed] = useState(false);
   const [mobile, setMobile] = useState(false);
   const [search, setSearch] = useState("");
@@ -55,14 +58,26 @@ export function Shell({ children, title }: { children: ReactNode; title: string 
         <div className="workspace">
           <span className="workspace-avatar">M</span>
           <div>
-            <strong>Enterprise workspace</strong>
-            <small>Technology & innovation</small>
+            <select
+              aria-label="Select workspace"
+              value={workspace?.id ?? ""}
+              onChange={(e) => selectWorkspace(e.target.value)}
+              disabled={!workspaces.length}
+            >
+              {!workspaces.length && <option value="">No workspace</option>}
+              {workspaces.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
+              ))}
+            </select>
+            <small>{user ? "Member workspace" : "Sign in required"}</small>
           </div>
           <ChevronDown size={14} />
         </div>
         <span className="nav-label">WORKSPACE</span>
         <nav>
-          {nav.map(([label, to, Icon], i) => (
+          {nav.map(([label, to, Icon]) => (
             <Link
               key={to}
               to={to}
@@ -73,25 +88,17 @@ export function Shell({ children, title }: { children: ReactNode; title: string 
             >
               <Icon size={18} />
               <span>{label}</span>
-              {i === 4 && <small className="nav-count">12</small>}
             </Link>
           ))}
         </nav>
         <div className="sidebar-bottom">
-          <div className="storage-mini">
-            <span>
-              <HardDrive size={14} /> Workspace storage <strong>68%</strong>
+          <Link to="/auth" className="profile">
+            <span className="avatar">
+              <UserRound size={17} />
             </span>
-            <div className="meter">
-              <i />
-            </div>
-            <small>6.8 TB of 10 TB · Sample</small>
-          </div>
-          <Link to="/settings" className="profile">
-            <span className="avatar">SP</span>
             <div>
-              <strong>Sahasra Patnala</strong>
-              <small>Sample workspace profile</small>
+              <strong>{user ? "Your account" : "Sign in"}</strong>
+              <small>{user ? "Account & access" : "Connect your workspace"}</small>
             </div>
             <ChevronDown size={14} />
           </Link>
@@ -137,21 +144,24 @@ export function Shell({ children, title }: { children: ReactNode; title: string 
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
-              <kbd>
-                <Command size={10} /> K
-              </kbd>
             </form>
             <Button
               variant="ghost"
               size="icon"
               aria-label="Notifications"
               onClick={() =>
-                toast.info("No new notifications. Sample activity is shown on Overview.")
+                toast.info(
+                  "Notifications are not connected yet. Workspace activity is available on Overview.",
+                )
               }
             >
               <Bell />
             </Button>
-            <span className="avatar small">SP</span>
+            <Button variant="ghost" size="icon" aria-label="Account" asChild>
+              <Link to="/auth">
+                <UserRound />
+              </Link>
+            </Button>
           </div>
         </header>
         <main>{children}</main>
@@ -187,13 +197,6 @@ export function PageHeader({
       </div>
       {action}
     </div>
-  );
-}
-export function SampleLabel() {
-  return (
-    <span className="sample-badge">
-      <span /> Sample workspace
-    </span>
   );
 }
 export function SectionTitle({

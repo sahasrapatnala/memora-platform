@@ -1,9 +1,8 @@
-# MEMORA
-- [x] Enterprise application and all ten workspaces
-- [x] Clearly separated sample data, search, comparisons, illustrative transcript and exports
-- [x] Cloud accounts, secure upload, metadata, hashing and awaiting-service job records
-- [x] Initial document-processing service source and integration contract
-- [x] Tests and desktop/mobile sample workflow verification
-- [ ] Signed-in upload end-to-end verification — requires a confirmed application account; no auth users exist yet
-- [ ] Full processor, source playback, actual slide screenshots, PDF screenshot export, document previews, full knowledge schema and shared enterprise roles — requires deployed compute, model access and further implementation
-- [ ] Live video/document processing — requires deployment of the independent Python service and model access
+# MEMORA correction
+- [x] Remove fabricated records and metrics from every normal page.
+- [x] Prepare workspace-scoped core records and private asset storage.
+- [x] Connect real data, workspace settings, upload and exports; audit all controls.
+- [x] Apply restrained enterprise presentation and verify desktop/mobile.
+- [x] Test integrity rules and public empty states; deliver functionality audit.
+- [ ] Verify signed-in uploads, workspace/profile saves, access isolation and refresh persistence — no application account exists; user must sign in.
+- [ ] Live extraction, diarization, slide detection, similarity and inventory analysis — requires deployed independent Python processing service and model access.

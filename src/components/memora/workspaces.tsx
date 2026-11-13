@@ -11,56 +11,138 @@ import {
   ShieldCheck,
   AlertCircle,
   Copy,
-  Check,
-  HardDrive,
-  FileChartColumn,
-  Play,
   UserRound,
-  Settings2,
+  FileChartColumn,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Shell, PageHeader, SampleLabel, SectionTitle, Status, FileIcon } from "./shell";
-import { sampleFiles, segments, stamp, validateFile } from "@/lib/memora/data";
-import { exportCsv, exportTranscript } from "@/lib/memora/export";
+import { Shell, PageHeader, SectionTitle, Status, FileIcon } from "./shell";
+import { validateFile, stamp } from "@/lib/memora/data";
+import { exportCsv, download } from "@/lib/memora/export";
 import { supabase } from "@/integrations/supabase/client";
 import { registerOriginal } from "@/lib/memora/api.functions";
-import type { Tables } from "@/integrations/supabase/types";
+import { useWorkspace } from "./workspace-data";
+import { formatBytes, measuredStorage } from "@/lib/memora/integrity";
 
+export function DataState() {
+  const { user, workspace, loading, error, refresh } = useWorkspace();
+  if (loading)
+    return (
+      <p className="data-state" role="status">
+        Loading workspace…
+      </p>
+    );
+  if (error)
+    return (
+      <div className="notice" role="alert">
+        <AlertCircle />
+        <span>Workspace data could not be loaded. No results are shown.</span>
+        <Button variant="outline" onClick={() => void refresh()}>
+          Retry
+        </Button>
+      </div>
+    );
+  if (!user)
+    return (
+      <div className="data-state">
+        <span>Sign in to access your workspace.</span>
+        <Button variant="outline" asChild>
+          <Link to="/auth">Sign in</Link>
+        </Button>
+      </div>
+    );
+  if (!workspace)
+    return (
+      <div className="data-state">
+        <span>No workspace created yet.</span>
+        <Button variant="outline" asChild>
+          <Link to="/settings">Create workspace</Link>
+        </Button>
+      </div>
+    );
+  return null;
+}
+export function Empty({
+  title,
+  description = "Upload originals to begin building your knowledge repository.",
+}: {
+  title: string;
+  description?: string;
+}) {
+  return (
+    <div className="empty-state">
+      <Files size={28} />
+      <h2>{title}</h2>
+      <p>{description}</p>
+      <Button variant="outline" asChild>
+        <Link to="/upload">
+          <Upload />
+          Upload files
+        </Link>
+      </Button>
+    </div>
+  );
+}
+export function ProcessorNotice() {
+  return (
+    <div className="notice">
+      <AlertCircle size={18} />
+      <span>
+        Backend integration required. The Python processing service is not connected; no analysis
+        results are generated.
+      </span>
+    </div>
+  );
+}
+export function FileTable({
+  files,
+}: {
+  files: NonNullable<ReturnType<typeof useWorkspace>["data"]>["files"];
+}) {
+  const { data } = useWorkspace();
+  return (
+    <div className="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Original file</th>
+            <th>Format</th>
+            <th>Size</th>
+            <th>Status</th>
+            <th>Uploaded</th>
+          </tr>
+        </thead>
+        <tbody>
+          {files.map((f) => (
+            <tr key={f.id}>
+              <td>
+                <span className="file-cell">
+                  <FileIcon format={f.format} />
+                  <strong title={f.name}>{f.name}</strong>
+                </span>
+              </td>
+              <td>{f.format}</td>
+              <td>{formatBytes(f.size_bytes)}</td>
+              <td>
+                <Status value={data?.jobs.find((j) => j.file_id === f.id)?.status ?? f.status} />
+              </td>
+              <td>{new Date(f.created_at).toLocaleDateString()}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 export function UploadWorkspace() {
   const [selected, setSelected] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
-  const [saved, setSaved] = useState<Tables<"files">[]>([]);
-  const [signedIn, setSignedIn] = useState(false);
+  const { user, workspace, data, refresh, loading, error } = useWorkspace();
+  const saved = data?.files ?? [];
+  const signedIn = !!user;
   const input = useRef<HTMLInputElement>(null);
   const register = useServerFn(registerOriginal);
-  const load = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    setSignedIn(!!user);
-    if (user) {
-      const result = await supabase
-        .from("files")
-        .select()
-        .order("created_at", { ascending: false });
-      if (result.error) toast.error("Could not load saved originals");
-      else setSaved(result.data ?? []);
-    }
-  };
-  useEffect(() => {
-    void load();
-  }, []);
   const select = (files: FileList | null) => {
     if (!files) return;
     const valid: File[] = [];
@@ -72,6 +154,7 @@ export function UploadWorkspace() {
     setSelected((prev) => [...prev, ...valid]);
   };
   const upload = async () => {
+    if (busy || !workspace || selected.length === 0) return;
     setBusy(true);
     try {
       const {
@@ -87,6 +170,7 @@ export function UploadWorkspace() {
         if (stored.error) throw new Error("Secure upload failed");
         await register({
           data: {
+            workspaceId: workspace.id,
             path,
             name: file.name,
             format: file.name.split(".").pop()?.toUpperCase() ?? "",
@@ -95,7 +179,7 @@ export function UploadWorkspace() {
         });
       }
       setSelected([]);
-      await load();
+      await refresh();
       toast.success(
         "Originals securely saved and hashed. Processing is awaiting service connection.",
       );
@@ -110,8 +194,8 @@ export function UploadWorkspace() {
       <PageHeader
         title="Upload & process"
         description="Preserve your originals. Prepare your next knowledge package."
-        action={<SampleLabel />}
       />
+      <DataState />
       <div className="notice">
         <AlertCircle size={17} />
         <span>
@@ -154,13 +238,14 @@ export function UploadWorkspace() {
               </span>
               <Button
                 variant="ghost"
+                disabled={busy}
                 onClick={() => setSelected((prev) => prev.filter((_, index) => index !== i))}
               >
                 Remove
               </Button>
             </div>
           ))}
-          <Button disabled={busy || !signedIn} onClick={upload}>
+          <Button disabled={busy || !signedIn || !workspace} onClick={upload}>
             {busy ? "Saving originals…" : "Upload & register originals"}
             <ArrowRight />
           </Button>
@@ -176,7 +261,7 @@ export function UploadWorkspace() {
           title="Your saved originals"
           description="Actual files · stored securely, never automatically deleted"
         />
-        {saved.length === 0 ? (
+        {!loading && !error && saved.length === 0 ? (
           <div className="empty-state">
             <Files />
             <h2>No originals uploaded yet</h2>
@@ -203,7 +288,9 @@ export function UploadWorkspace() {
                     <td>{f.name}</td>
                     <td>{(f.size_bytes / 1024 / 1024).toFixed(2)} MB</td>
                     <td>
-                      <Status value="Awaiting Review" />
+                      <Status
+                        value={data?.jobs.find((j) => j.file_id === f.id)?.status ?? f.status}
+                      />
                     </td>
                     <td title={f.sha256 ?? ""}>{f.sha256?.slice(0, 20)}…</td>
                   </tr>
@@ -216,844 +303,520 @@ export function UploadWorkspace() {
     </Shell>
   );
 }
+
 export function Library({ kind }: { kind: "videos" | "documents" }) {
+  const { data, loading, error } = useWorkspace();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("All statuses");
-  const [doc, setDoc] = useState<string | null>(null);
-  const files = sampleFiles.filter(
+  const all = (data?.files ?? []).filter((f) =>
+    kind === "videos"
+      ? ["MP4", "MOV", "MKV", "AVI"].includes(f.format)
+      : ["PDF", "PPTX", "DOCX"].includes(f.format),
+  );
+  const files = all.filter(
     (f) =>
-      (kind === "videos" ? f.format === "MP4" : f.format !== "MP4") &&
       f.name.toLowerCase().includes(search.toLowerCase()) &&
-      (status === "All statuses" || f.status === status),
+      (status === "All statuses" ||
+        (data?.jobs.find((j) => j.file_id === f.id)?.status ?? f.status) === status),
   );
   return (
     <Shell title={kind === "videos" ? "Video Intelligence" : "Document Intelligence"}>
       <PageHeader
         title={kind === "videos" ? "Video intelligence" : "Document intelligence"}
-        description={
-          kind === "videos"
-            ? "Every recording, connected to the knowledge within."
-            : "Explore extracted pages, slides, and source references."
-        }
+        description="Original sources and verified analysis results."
         action={
           <Button asChild>
             <Link to="/upload">
               <Upload />
-              Upload {kind === "videos" ? "recording" : "document"}
+              Upload files
             </Link>
           </Button>
         }
       />
+      <DataState />
+      <ProcessorNotice />
       <div className="toolbar">
         <Input
-          placeholder={`Search ${kind}...`}
           aria-label={`Search ${kind}`}
+          placeholder={`Search ${kind}…`}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <select value={status} onChange={(e) => setStatus(e.target.value)}>
+        <select
+          aria-label="Filter by status"
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+        >
           <option>All statuses</option>
-          <option>Completed</option>
-          <option>Awaiting Review</option>
+          {Array.from(
+            new Set(all.map((f) => data?.jobs.find((j) => j.file_id === f.id)?.status ?? f.status)),
+          ).map((s) => (
+            <option key={s}>{s}</option>
+          ))}
         </select>
-        <SampleLabel />
       </div>
-      <div className="file-grid">
-        {files.map((f) => (
-          <article className="library-item" key={f.id}>
-            <div className="library-preview">
-              {kind === "videos" ? <Video /> : <Files />}
-              <span className="preview-caption">
-                {kind === "videos"
-                  ? "Illustrative recording · Source not connected"
-                  : "Sample document · Preview unavailable"}
-              </span>
-            </div>
-            <div className="library-content">
-              <h3>{f.name}</h3>
-              <p>
-                {f.size} · {f.date} · {f.assets} knowledge assets
-              </p>
-              <Status value={f.status} />
-              <div className="action-row">
-                {kind === "videos" ? (
-                  <Button variant="outline" asChild>
+      {!loading &&
+        !error &&
+        (files.length ? (
+          <>
+            <FileTable files={files} />
+            {kind === "videos" &&
+              files.map((f) => (
+                <div className="integration-row" key={f.id}>
+                  <span>{f.name}</span>
+                  <Button variant="link" asChild>
                     <Link to="/videos/$id" params={{ id: f.id }}>
-                      Open analysis
+                      View recording
                       <ArrowRight />
                     </Link>
                   </Button>
-                ) : (
-                  <Button variant="outline" onClick={() => setDoc(f.name)}>
-                    View document
-                    <ArrowRight />
-                  </Button>
-                )}
-              </div>
-            </div>
-          </article>
+                </div>
+              ))}
+          </>
+        ) : (
+          <Empty
+            title={
+              all.length
+                ? "No matching files"
+                : kind === "videos"
+                  ? "No videos processed yet"
+                  : "No documents processed yet"
+            }
+          />
         ))}
-      </div>
-      {files.length === 0 && (
-        <div className="empty-state">
-          <Search />
-          <h2>No matching files</h2>
-          <p>Try another search or status.</p>
-        </div>
-      )}
-      <Dialog open={!!doc} onOpenChange={() => setDoc(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{doc}</DialogTitle>
-            <DialogDescription>
-              Sample document record. Real page images, text, hashes, and author metadata will
-              appear after processing.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="empty-state">
-            <Files />
-            <p>Original document is not attached to this sample.</p>
-          </div>
-        </DialogContent>
-      </Dialog>
     </Shell>
   );
 }
 export function VideoDetail({ id }: { id: string }) {
-  const [active, setActive] = useState(1);
-  const [speaker, setSpeaker] = useState("All speakers");
-  const [search, setSearch] = useState("");
-  const [correction, setCorrection] = useState(false);
-  const [label, setLabel] = useState("Speaker 1");
-  const [labels, setLabels] = useState<Record<string, string>>({});
-  const [currentSpeaker, setCurrentSpeaker] = useState("Speaker 1");
-  const file = sampleFiles.find((f) => f.id === id);
-  const segment = segments.find((s) => s.id === active) ?? segments[0];
+  const { data, loading, error } = useWorkspace();
+  const file = data?.files.find((f) => f.id === id);
+  const video = data?.videos.find((v) => v.file_id === id);
+  const segments = data?.transcripts.filter((s) => s.video_id === video?.id) ?? [];
+  const [url, setUrl] = useState("");
+  const [query, setQuery] = useState("");
+  useEffect(() => {
+    setUrl("");
+    if (!file) return;
+    let current = true;
+    void supabase.storage
+      .from("original-files")
+      .createSignedUrl(file.storage_path, 3600)
+      .then((r) => {
+        if (!current) return;
+        if (r.error) toast.error("Could not open the original recording");
+        else setUrl(r.data.signedUrl);
+      });
+    return () => {
+      current = false;
+    };
+  }, [file]);
   return (
     <Shell title="Video Intelligence">
       <PageHeader
-        eyebrow="VIDEO INTELLIGENCE / VISUAL TRANSCRIPT"
-        title={file?.name.replace(".mp4", "") ?? "Recording not found"}
-        description="Timestamped speech. Consistent speakers. Connected source references."
-        action={<SampleLabel />}
+        title={file?.name ?? "Recording"}
+        description="Original source, transcript and speaker references."
       />
-      <div className="notice">
-        <AlertCircle size={17} />
-        Illustrative transcript only. The original recording and actual slide screenshots are not
-        connected.
-      </div>
-      <div className="detail-grid">
-        <div>
-          <div className="source-unavailable">
-            <Play size={38} />
-            <h3>Original recording unavailable</h3>
-            <p>
-              Selected timestamp {stamp(segment.start)} · FRAME_00{segment.slide}
-            </p>
-            <span>Sample source reference</span>
-          </div>
-          <div className="detail-meta">
-            <span>{file?.size ?? "Unknown size"}</span>
-            <span>4 sample segments</span>
-            <span>2 anonymous speakers</span>
-            <span>Original preserved</span>
-          </div>
-          <SectionTitle
-            title={segment.title}
-            description={`FRAME_00${segment.slide} · ${stamp(segment.start)}–${stamp(segment.end)}`}
-          />
-          <div className="slide-placeholder">
-            <Files />
-            <strong>Actual screenshot unavailable</strong>
-            <small>Generated images are never substituted for extracted slides.</small>
-          </div>
-          <div className="slide-timeline">
-            {segments.map((s) => (
+      <DataState />
+      {!loading && !error && !file ? (
+        <Empty title="Recording not found" />
+      ) : (
+        <>
+          {url && <video className="original-player" controls src={url} />}
+          <ProcessorNotice />
+          <SectionTitle title="Transcript" />
+          {segments.length ? (
+            <>
+              <Input
+                aria-label="Search transcript"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+              {segments
+                .filter((s) => s.content.toLowerCase().includes(query.toLowerCase()))
+                .map((s) => (
+                  <article className="search-result" key={s.id}>
+                    <strong>
+                      {stamp(Math.floor(s.start_seconds))} ·{" "}
+                      {data?.speakers.find((p) => p.id === s.speaker_id)?.label ??
+                        "Unassigned speaker"}
+                    </strong>
+                    <p>{s.content}</p>
+                  </article>
+                ))}
               <Button
-                key={s.id}
-                variant="ghost"
-                className={`slide-tile ${active === s.id ? "selected" : ""}`}
-                onClick={() => setActive(s.id)}
+                variant="outline"
+                onClick={() =>
+                  download(
+                    segments
+                      .map((s) => `${stamp(Math.floor(s.start_seconds))} ${s.content}`)
+                      .join("\n\n"),
+                    "transcript.txt",
+                    "text/plain",
+                  )
+                }
               >
-                <span className="slide-placeholder">
-                  <Files size={22} />
-                  <span>Slide {s.slide}</span>
-                  <small>Sample reference</small>
-                </span>
-                <strong>
-                  {stamp(s.start)} · FRAME_00{s.slide}
-                </strong>
-                <span>{s.title}</span>
-              </Button>
-            ))}
-          </div>
-        </div>
-        <section className="chart-panel">
-          <SectionTitle
-            title="Visual transcript"
-            action={
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Edit sample speaker label"
-                onClick={() => {
-                  setCurrentSpeaker("Speaker 1");
-                  setLabel(labels["Speaker 1"] ?? "Speaker 1");
-                  setCorrection(true);
-                }}
-              >
-                <Settings2 />
-              </Button>
-            }
-          />
-          <div className="toolbar px-5">
-            <Input
-              aria-label="Search transcript"
-              placeholder="Search transcript..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            <select
-              aria-label="Filter by speaker"
-              value={speaker}
-              onChange={(e) => setSpeaker(e.target.value)}
-            >
-              <option>All speakers</option>
-              <option>Speaker 1</option>
-              <option>Speaker 2</option>
-            </select>
-          </div>
-          <div className="speaker-summary px-5">
-            {["Speaker 1", "Speaker 2"].map((name) => (
-              <div key={name}>
-                <strong className={name === "Speaker 2" ? "speaker-two" : ""}>
-                  {labels[name] ?? name}
-                </strong>
-                <p>2 sample segments</p>
-                <Button
-                  variant="link"
-                  size="sm"
-                  onClick={() => {
-                    setCurrentSpeaker(name);
-                    setLabel(labels[name] ?? name);
-                    setCorrection(true);
-                  }}
-                >
-                  Edit label
-                </Button>
-              </div>
-            ))}
-          </div>
-          <div className="transcript-list">
-            {segments
-              .filter(
-                (s) =>
-                  (speaker === "All speakers" || s.speaker === speaker) &&
-                  s.text.toLowerCase().includes(search.toLowerCase()),
-              )
-              .map((s) => (
-                <Button
-                  key={s.id}
-                  variant="ghost"
-                  className={`transcript-segment ${active === s.id ? "selected" : ""}`}
-                  onClick={() => setActive(s.id)}
-                >
-                  <div>
-                    <div className="segment-meta">
-                      <span>{stamp(s.start)}</span>
-                      <strong className={s.speaker === "Speaker 2" ? "speaker-two" : ""}>
-                        {labels[s.speaker] ?? s.speaker}
-                      </strong>
-                      <span>FRAME_00{s.slide}</span>
-                    </div>
-                    <p>{s.text}</p>
-                  </div>
-                </Button>
-              ))}
-          </div>
-          <div className="action-row p-5">
-            {["TXT", "JSON", "PDF"].map((type) => (
-              <Button key={type} variant="outline" size="sm" onClick={() => exportTranscript(type)}>
                 <Download />
-                {type}
+                Export transcript
               </Button>
-            ))}
-          </div>
-        </section>
-      </div>
-      <Dialog open={correction} onOpenChange={setCorrection}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Correct sample speaker label</DialogTitle>
-            <DialogDescription>
-              This change applies only to the sample view in this session. Real corrections require
-              authorized access and an audit record.
-            </DialogDescription>
-          </DialogHeader>
-          <Input
-            aria-label="Speaker display label"
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-          />
-          <DialogFooter>
-            <Button
-              onClick={() => {
-                if (!label.trim()) return;
-                setLabels((prev) => ({ ...prev, [currentSpeaker]: label.trim() }));
-                setCorrection(false);
-                toast.success("Sample display label updated");
-              }}
-            >
-              Save sample label
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </>
+          ) : (
+            <Empty
+              title="No transcript available yet"
+              description="Transcription, speaker detection and slide extraction require the processing service."
+            />
+          )}
+        </>
+      )}
     </Shell>
   );
 }
 export function Duplicates() {
-  const [group, setGroup] = useState(false);
-  const [review, setReview] = useState("Awaiting Review");
-  const [approve, setApprove] = useState(false);
+  const { data, loading, error } = useWorkspace();
   return (
     <Shell title="Duplicate Detection">
       <PageHeader
-        title="Less repetition. More clarity."
-        description="Compare matching content and make informed retention decisions."
-        action={<SampleLabel />}
+        title="Duplicate detection"
+        description="Source comparisons and authorized retention review."
       />
-      <div className="metrics-grid">
-        {[
-          ["Exact file matches", "128"],
-          ["Repeated slides & pages", "214"],
-          ["Similar documents", "42"],
-        ].map(([title, value]) => (
-          <article className="metric" key={title}>
-            <span className="metric-label">{title}</span>
-            <strong className="metric-value block">{value}</strong>
-            <small className="text-muted-foreground">Sample findings · not verified</small>
-          </article>
-        ))}
-      </div>
-      <SectionTitle
-        title="Duplicate groups"
-        description="Similarity is not proof of duplication. Review original sources before approval."
-      />
-      <div className="table-scroll chart-panel">
-        <table>
-          <thead>
-            <tr>
-              <th>GROUP</th>
-              <th>SOURCE / MATCH</th>
-              <th>METHOD</th>
-              <th>STATUS</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>DG-001</td>
-              <td>AI-native Networks Strategy / Technology Roadmap Q4 2026</td>
-              <td>Sample perceptual similarity · 96.8%</td>
-              <td>
-                <Status value={review} />
-              </td>
-              <td>
-                <Button variant="outline" size="sm" onClick={() => setGroup(!group)}>
-                  Compare
-                </Button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      {group && (
-        <section className="content-section">
-          <SectionTitle
-            title="Side-by-side comparison"
-            description="Sample candidate pair · slide images unavailable"
+      <DataState />
+      <ProcessorNotice />
+      {!loading &&
+        !error &&
+        (data?.groups.length ? (
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Group</th>
+                  <th>Method</th>
+                  <th>Status</th>
+                  <th>Review</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.groups.map((g) => (
+                  <tr key={g.id}>
+                    <td>{g.id}</td>
+                    <td>{g.method}</td>
+                    <td>
+                      <Status value={g.status} />
+                    </td>
+                    <td>Backend integration required</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <Empty
+            title="No duplicate files detected yet"
+            description="No duplicate candidates have been recorded. Originals remain preserved."
           />
-          <div className="comparison-grid">
-            {["AI-native Networks Strategy.pptx", "Technology Roadmap Q4 2026.pptx"].map(
-              (name, i) => (
-                <div className="comparison-source" key={name}>
-                  <h3>{name}</h3>
-                  <div className="slide-placeholder">
-                    <Files />
-                    <span>Actual slide preview not connected</span>
-                  </div>
-                  <p>
-                    Sample extracted topic: AI-native network architecture and intelligent
-                    operations.
-                  </p>
-                  <div className="detail-meta">
-                    <span>Slide {i ? 12 : 8}</span>
-                    <span>Source retained</span>
-                  </div>
-                </div>
-              ),
-            )}
-          </div>
-          <div className="action-row">
-            <Button onClick={() => setApprove(true)}>
-              <ShieldCheck />
-              Recommend canonical copy
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setReview("Kept Both");
-                toast.success("Sample review: keep both sources");
-              }}
-            >
-              Keep both
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setReview("Not Duplicate");
-                toast.success("Sample candidate marked not duplicate");
-              }}
-            >
-              Not a duplicate
-            </Button>
-          </div>
-        </section>
-      )}
-      <Dialog open={approve} onOpenChange={setApprove}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Submit retention recommendation?</DialogTitle>
-            <DialogDescription>
-              This is a sample review, not a deletion or verification. Both original files remain
-              preserved. An authorized reviewer must verify source content before any retention
-              operation.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setApprove(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                setReview("Review Submitted");
-                setApprove(false);
-                toast.success("Sample recommendation submitted. No originals deleted.");
-              }}
-            >
-              Submit sample recommendation
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        ))}
     </Shell>
   );
 }
 export function Knowledge({ initialQuery = "" }: { initialQuery?: string }) {
+  const { data, loading, error } = useWorkspace();
   const [query, setQuery] = useState(initialQuery);
-  const [speaker, setSpeaker] = useState("All speakers");
-  const results = segments.filter(
-    (s) =>
-      (speaker === "All speakers" || s.speaker === speaker) &&
-      `${s.title} ${s.text}`.toLowerCase().includes(query.toLowerCase()),
+  useEffect(() => setQuery(initialQuery), [initialQuery]);
+  const matches = (data?.knowledge ?? []).filter((k) =>
+    k.content.toLowerCase().includes(query.toLowerCase()),
   );
   return (
     <Shell title="Knowledge Explorer">
       <PageHeader
-        title="Find the knowledge. Not just the file."
-        description="Explore connected transcripts, speakers, slides, and source references."
-        action={<SampleLabel />}
+        title="Knowledge explorer"
+        description="Search retained knowledge with original source traceability."
       />
+      <DataState />
       <div className="toolbar">
         <Input
           aria-label="Search knowledge"
-          placeholder="Search network slicing, architecture, AI..."
+          placeholder="Search knowledge…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <select
-          value={speaker}
-          onChange={(e) => setSpeaker(e.target.value)}
-          aria-label="Filter knowledge by speaker"
-        >
-          <option>All speakers</option>
-          <option>Speaker 1</option>
-          <option>Speaker 2</option>
-        </select>
-        <Button
-          variant="outline"
-          onClick={() =>
-            toast.info(
-              "Ask MEMORA is unavailable until real content retrieval and an AI provider are connected.",
-            )
-          }
-        >
-          <Search />
-          Ask MEMORA
-        </Button>
       </div>
-      <SectionTitle
-        title={`${results.length} knowledge matches`}
-        description="Keyword search · illustrative source content"
-      />
-      {results.map((s) => (
-        <article className="search-result" key={s.id}>
-          <div className="segment-meta">
-            <Video size={15} />
-            <span>Video transcript</span>
-            <strong>{s.speaker}</strong>
-            <span>
-              {stamp(s.start)} · FRAME_00{s.slide}
-            </span>
-          </div>
-          <h3>{s.title}</h3>
-          <p>{s.text}</p>
-          <small>5G Network Architecture — Technical Deep Dive.mp4 · Sample source</small>
-          <div className="action-row">
-            <Button variant="outline" size="sm" asChild>
-              <Link to="/videos/$id" params={{ id: "network" }}>
-                Open source
-                <ArrowRight />
-              </Link>
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                navigator.clipboard
-                  .writeText(s.text)
-                  .then(() => toast.success("Sample transcript text copied"))
-                  .catch(() => toast.error("Could not copy text"));
-              }}
-            >
-              <Copy />
-              Copy text
-            </Button>
-          </div>
-        </article>
-      ))}
-      {results.length === 0 && (
-        <div className="empty-state">
-          <Search />
-          <h2>No knowledge matches</h2>
-          <p>Try a broader topic or another speaker.</p>
-        </div>
-      )}
+      {!loading &&
+        !error &&
+        (matches.length ? (
+          matches.map((k) => (
+            <article className="search-result" key={k.id}>
+              <p>{k.content}</p>
+              <small>{data?.files.find((f) => f.id === k.file_id)?.name}</small>
+              <div className="action-row">
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    void navigator.clipboard
+                      .writeText(k.content)
+                      .then(() => toast.success("Text copied"))
+                      .catch(() => toast.error("Could not copy text"))
+                  }
+                >
+                  <Copy />
+                  Copy text
+                </Button>
+              </div>
+            </article>
+          ))
+        ) : (
+          <Empty
+            title={
+              data?.knowledge.length ? "No knowledge matches" : "No knowledge assets available yet"
+            }
+            description="Searchable transcripts, pages and slide references appear only after verified extraction."
+          />
+        ))}
     </Shell>
   );
 }
 export function Storage() {
-  const [open, setOpen] = useState(false);
+  const { data, loading, error } = useWorkspace();
+  const values = measuredStorage(
+    data?.files ?? [],
+    data?.analytics ?? [],
+    data?.approvals.filter((a) => a.status === "Approved").map((a) => a.id),
+  );
   return (
     <Shell title="Storage Optimization">
       <PageHeader
-        title="Preserve more. Store less."
-        description="Measured knowledge packages and human-reviewed optimization opportunities."
-        action={<SampleLabel />}
+        title="Storage optimization"
+        description="Measured packages. Verified savings. Preserved sources."
       />
-      <div className="metrics-grid">
+      <DataState />
+      <div className="metrics-grid storage-metrics">
         {[
-          ["Original storage", "6.84 TB"],
-          ["Knowledge packages", "1.92 TB"],
-          ["Potential savings", "4.92 TB"],
-          ["Potential reduction", "71.9%"],
-          ["Verified reclaimed", "0 B"],
-        ].map(([title, value]) => (
-          <article className="metric" key={title}>
-            <span className="metric-label">{title}</span>
-            <strong className="metric-value block">{value}</strong>
+          ["Original storage", values.original],
+          ["Verified knowledge packages", values.generated],
+          ["Potential savings", values.potential],
+          ["Verified reclaimed", values.reclaimed],
+        ].map(([label, value]) => (
+          <article className="metric" key={label}>
+            <span className="metric-label">{label}</span>
+            <strong className="metric-value block">
+              {loading || error ? "—" : formatBytes(Number(value))}
+            </strong>
           </article>
         ))}
       </div>
-      <div className="notice">
-        <ShieldCheck size={18} />
-        Sample estimates only. Potential savings are not reclaimed storage. All originals are
-        retained.
+      <div className="data-state">
+        <ShieldCheck />
+        <span>
+          Potential savings are not reclaimed storage. Originals are never automatically deleted.
+        </span>
       </div>
-      <SectionTitle
-        title="Knowledge package breakdown"
-        description="Illustrative measurements for the sample workspace"
-      />
-      <div className="table-scroll chart-panel">
-        <table>
-          <thead>
-            <tr>
-              <th>ASSET TYPE</th>
-              <th>SIZE</th>
-              <th>SOURCE TRACEABILITY</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[
-              ["Timestamped transcripts", "0.08 TB"],
-              ["Speaker metadata", "0.01 TB"],
-              ["Extracted frames", "0.92 TB"],
-              ["Document pages & slides", "0.78 TB"],
-              ["Metadata & search index", "0.13 TB"],
-            ].map(([label, size]) => (
-              <tr key={label}>
-                <td>{label}</td>
-                <td>{size}</td>
-                <td>Original source references retained</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <section className="content-section">
-        <SectionTitle title="Retention recommendations" />
-        <div className="review-band">
-          <ShieldCheck />
-          <div>
-            <strong>Review the original recording after knowledge-package verification</strong>
-            <p>
-              Sample potential impact: 1.18 GB. Reason: compact transcript and slide package. Human
-              approval required.
-            </p>
-          </div>
-          <Button variant="outline" onClick={() => setOpen(true)}>
-            Review
-          </Button>
-        </div>
-      </section>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Retention review</DialogTitle>
-            <DialogDescription>
-              No actual source package has been verified for this sample. Retention approval is
-              unavailable. Connect the original recording and processing service first.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button onClick={() => setOpen(false)}>Keep original</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </Shell>
-  );
-}
-export function Offboarding() {
-  const [inventory, setInventory] = useState<File | null>(null);
-  const ref = useRef<HTMLInputElement>(null);
-  return (
-    <Shell title="Offboarding">
-      <PageHeader
-        title="Knowledge stays. Transitions move forward."
-        description="Review employee inventories against your preserved repository."
-      />
-      <div className="notice">
-        <AlertCircle size={18} />
-        Repository comparison is unavailable until the inventory analysis service is connected.
-        Employee files are never automatically deleted.
-      </div>
-      <div className="dropzone">
-        <UserRound size={38} />
-        <h2>Select an employee file inventory</h2>
-        <p>CSV inventory with file name, size, and source location</p>
-        <input
-          type="file"
-          accept=".csv"
-          hidden
-          ref={ref}
-          onChange={(e) => setInventory(e.target.files?.[0] ?? null)}
+      {!loading && !error && (
+        <Empty
+          title="No optimization reports generated yet"
+          description="Optimization recommendations require measured knowledge packages and authorized review."
         />
-        <Button onClick={() => ref.current?.click()}>
-          <Upload />
-          Browse inventory
-        </Button>
-        {inventory && (
-          <small>
-            Selected: {inventory.name} · {(inventory.size / 1024).toFixed(1)} KB · Not analyzed
-          </small>
-        )}
-      </div>
-      {inventory && (
-        <div className="action-row">
-          <Button
-            variant="outline"
-            onClick={() =>
-              toast.info(
-                "Inventory selected. Analysis requires the processing service; no results have been generated.",
-              )
-            }
-          >
-            Check analysis availability
-          </Button>
-        </div>
       )}
     </Shell>
   );
 }
+export function Offboarding() {
+  return (
+    <Shell title="Offboarding">
+      <PageHeader
+        title="Offboarding"
+        description="Preserve knowledge through employee transitions."
+      />
+      <DataState />
+      <ProcessorNotice />
+      <Empty
+        title="No offboarding cases available yet"
+        description="Inventory comparison and retention review require the processing service."
+      />
+      <Button variant="outline" disabled>
+        <UserRound />
+        Inventory analysis · Coming soon
+      </Button>
+    </Shell>
+  );
+}
 export function Reports() {
-  const [type, setType] = useState("");
-  const names = [
-    "Storage Optimization",
-    "Duplicate Detection",
-    "Video Processing",
-    "Speaker Diarization",
-    "Visual Transcript",
-    "Document Analysis",
-    "Offboarding",
-    "Knowledge Asset",
-  ];
+  const { data, loading, error } = useWorkspace();
   return (
     <Shell title="Reports">
       <PageHeader
-        title="Intelligence, ready to share."
-        description="Export source-aware findings and storage insights."
-        action={<SampleLabel />}
+        title="Reports"
+        description="Verified workspace records and source-aware exports."
+        action={
+          <Button
+            variant="outline"
+            disabled={!data?.files.length || !!error}
+            onClick={() => exportCsv(data?.files ?? [])}
+          >
+            <Download />
+            Export file inventory
+          </Button>
+        }
       />
-      <div className="file-grid">
-        {names.map((name) => (
-          <article className="report-card" key={name}>
-            <FileChartColumn size={25} />
-            <h3>{name} Report</h3>
-            <p>Nov 1–13, 2026 · Clearly labeled sample data</p>
-            <div className="action-row">
-              <Button variant="outline" size="sm" onClick={() => setType(name)}>
-                View report
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() =>
-                  exportCsv(`memora-${name.toLowerCase().replaceAll(" ", "-")}-sample`)
-                }
-              >
-                <Download />
-                CSV
-              </Button>
+      <DataState />
+      {!loading &&
+        !error &&
+        (data?.reports.length ? (
+          data.reports.map((r) => (
+            <div className="integration-row" key={r.id}>
+              <span>
+                <FileChartColumn /> {r.name} · {r.kind}
+              </span>
+              <span>Report viewer · Coming soon</span>
             </div>
-          </article>
+          ))
+        ) : (
+          <Empty
+            title="No reports generated yet"
+            description="Processing reports appear when verified findings are available. Uploaded file inventories can be exported separately."
+          />
         ))}
-      </div>
-      <Dialog open={!!type} onOpenChange={() => setType("")}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{type} Report</DialogTitle>
-            <DialogDescription>
-              Sample workspace report · November 2026. Not a record of actual processing.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="integration-row">
-            <span>Original storage</span>
-            <strong>6.84 TB</strong>
-          </div>
-          <div className="integration-row">
-            <span>Potential savings</span>
-            <strong>4.92 TB</strong>
-          </div>
-          <div className="integration-row">
-            <span>Verified reclaimed storage</span>
-            <strong>0 B</strong>
-          </div>
-          <p className="text-muted-foreground text-xs">
-            All source originals retained. Processing-specific sample details are available in the
-            corresponding workspace.
-          </p>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => exportCsv()}>
-              <Download />
-              Export sample CSV
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </Shell>
   );
 }
 export function SettingsWorkspace() {
-  const [organization, setOrganization] = useState("Enterprise workspace");
-  const [review, setReview] = useState(true);
+  const { user, workspace, refresh, error } = useWorkspace();
+  const [name, setName] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    setName(workspace?.name ?? "");
+  }, [workspace]);
+  useEffect(() => {
+    if (!user) return;
+    void supabase
+      .from("profiles")
+      .select()
+      .eq("id", user.id)
+      .maybeSingle()
+      .then((r) => {
+        if (r.error) toast.error("Could not load profile");
+        else setDisplayName(r.data?.display_name ?? "");
+      });
+  }, [user]);
+  async function save() {
+    if (busy || !user || !name.trim()) return;
+    setBusy(true);
+    try {
+      if (workspace) {
+        const r = await supabase
+          .from("workspaces")
+          .update({ name: name.trim() })
+          .eq("id", workspace.id)
+          .select()
+          .single();
+        if (r.error) throw r.error;
+      } else {
+        const r = await supabase.rpc("create_workspace", { workspace_name: name.trim() });
+        if (r.error) throw r.error;
+      }
+      await refresh();
+      toast.success(workspace ? "Workspace saved" : "Workspace created");
+    } catch {
+      toast.error("Workspace could not be saved. Only the owner may edit it.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function saveProfile() {
+    if (!user || busy) return;
+    setBusy(true);
+    try {
+      const r = await supabase
+        .from("profiles")
+        .upsert({ id: user.id, display_name: displayName.trim() });
+      if (r.error) throw r.error;
+      toast.success("Profile saved");
+    } catch {
+      toast.error("Could not save profile");
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <Shell title="Settings">
       <PageHeader
         title="Workspace settings"
-        description="Configuration, access, integrations, and retention safeguards."
+        description="Workspace identity, account access and retention safeguards."
       />
+      <DataState />
       <div className="settings-grid">
         <div>
           <section className="settings-group">
-            <h2>Workspace</h2>
-            <label htmlFor="organization">Sample workspace name</label>
+            <h2>{workspace ? "Workspace" : "Create workspace"}</h2>
+            <label htmlFor="workspace-name">Workspace name</label>
             <Input
-              id="organization"
-              value={organization}
-              onChange={(e) => setOrganization(e.target.value)}
+              id="workspace-name"
+              value={name}
+              maxLength={100}
+              onChange={(e) => setName(e.target.value)}
+              disabled={!user || busy}
             />
-            <Button onClick={() => toast.success("Sample workspace name updated for this session")}>
-              Save sample settings
+            <Button disabled={!user || busy || !name.trim() || !!error} onClick={() => void save()}>
+              {busy ? "Saving…" : workspace ? "Save workspace" : "Create workspace"}
+            </Button>
+          </section>
+          <section className="settings-group">
+            <h2>Profile</h2>
+            <label htmlFor="display-name">Display name</label>
+            <Input
+              id="display-name"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              disabled={!user || busy}
+            />
+            <Button disabled={!user || busy} onClick={() => void saveProfile()}>
+              Save profile
+            </Button>
+            <Button variant="link" asChild>
+              <Link to="/auth">Manage account</Link>
             </Button>
           </section>
           <section className="settings-group">
             <h2>Retention & approvals</h2>
-            <div className="integration-row">
-              <span>Require human review</span>
-              <Switch
-                aria-label="Require human review"
-                checked={review}
-                onCheckedChange={() => {
-                  setReview(true);
-                  toast.info(
-                    "Human approval is mandatory. Originals are never automatically deleted.",
-                  );
-                }}
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Human review is mandatory for retention decisions.
+            <p>
+              Human approval is mandatory. Originals are preserved; deletion controls are
+              unavailable.
             </p>
-          </section>
-          <section className="settings-group">
-            <h2>Users & access</h2>
-            <p className="text-xs text-muted-foreground">
-              Sign in to manage your files. Shared workspace roles and enterprise permission
-              management are not configured yet.
-            </p>
-            <Button asChild variant="outline" className="mt-4">
-              <Link to="/auth">
-                <UserRound />
-                Manage account
-              </Link>
-            </Button>
           </section>
         </div>
         <div>
           <section className="settings-group">
             <h2>Integrations</h2>
+            <div className="integration-row">
+              <span>Lovable Cloud</span>
+              <Status
+                value={
+                  error
+                    ? "Connection error"
+                    : workspace
+                      ? "Workspace accessible"
+                      : "Sign in to verify access"
+                }
+              />
+            </div>
+            <div className="integration-row">
+              <span>Originals & generated assets</span>
+              <span>Private storage configured</span>
+            </div>
             {[
-              ["Lovable Cloud", "Connected"],
-              ["Private original storage", "Connected"],
-              ["Python processing service", "Not connected"],
-              ["Speaker diarization", "Not connected"],
-              ["AI-assisted search", "Not connected"],
-            ].map(([name, status]) => (
-              <div className="integration-row" key={name}>
-                <span>{name}</span>
-                <Status
-                  value={status === "Connected" ? "Completed" : (status ?? "Not connected")}
-                />
+              "Python processing service",
+              "Speaker diarization",
+              "Slide & document extraction",
+              "Near-duplicate analysis",
+            ].map((n) => (
+              <div className="integration-row" key={n}>
+                <span>{n}</span>
+                <Status value="Not connected" />
               </div>
             ))}
           </section>
           <section className="settings-group">
-            <h2>Processing configuration</h2>
-            <div className="integration-row">
-              <span>Transcription</span>
-              <span>Faster-Whisper · Awaiting service</span>
-            </div>
-            <div className="integration-row">
-              <span>Speakers</span>
-              <span>pyannote Community-1 · Awaiting service</span>
-            </div>
-            <div className="integration-row">
-              <span>Slide extraction</span>
-              <span>OpenCV · Awaiting service</span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Real processing results appear only after successful service execution.
+            <h2>Workspace access</h2>
+            <p>
+              Records are restricted to workspace members. Invitations and reviewer management are
+              coming soon.
             </p>
           </section>
         </div>

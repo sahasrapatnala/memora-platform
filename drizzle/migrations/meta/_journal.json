@@ -8,6 +8,20 @@
       "when": 1794570513935,
       "tag": "0000_memora_core",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794572600163,
+      "tag": "0001_workspace_integrity_core",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794572655901,
+      "tag": "0002_private_generated_asset_access",
+      "breakpoints": true
     }
   ]
 }
