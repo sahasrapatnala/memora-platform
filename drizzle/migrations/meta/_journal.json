@@ -71,6 +71,13 @@
       "when": 1794656695159,
       "tag": "0009_memora_video_demo_v1",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794657057951,
+      "tag": "0010_memora_video_demo_permissions_v1",
+      "breakpoints": true
     }
   ]
 }
