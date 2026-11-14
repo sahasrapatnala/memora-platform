@@ -1,4 +1,11 @@
 # MEMORA Phase 2
+## Master MVP completion
+- [ ] Secure fenced dispatch, bounded trusted result ingestion and job lifecycle reconciliation.
+- [ ] Persist video/document results and private assets; add result views and bounded source-linked search.
+- [ ] Implement workspace-scoped exact and explainable near duplicates with evidence.
+- [ ] Implement retention approval, coordinated deletion and historical savings accounting.
+- [ ] Implement offboarding inventory selection and reviewed duplicate outcomes.
+- [ ] Run unit, integration and real-file acceptance checks; document deployment blockers.
 ## Python dispatch integration
 - [x] Add approval-gated readiness validation that fails closed without claiming or executing jobs; verify against the actual Approved Tech Concept Hack recording.
 - [ ] Connect atomic dispatch and protected ingestion — blocked: deployed processor URL/shared credential and private generated-assets write authorization are unavailable; repository video processing still reports Blocked.
