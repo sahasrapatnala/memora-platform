@@ -11,6 +11,12 @@ describe("fail-closed dispatch readiness", () => {
     expect(validateDispatchReadiness(input)).toMatchObject({ jobId: "job", dispatched: false, status: "Blocked" });
     expect(validateDispatchReadiness(input).blockers).toHaveLength(4);
   });
+  it("accepts supported document formats without claiming or dispatching", () => {
+    for (const format of ["PDF", "PPTX", "DOCX"]) {
+      expect(validateDispatchReadiness({ ...input, file: { ...input.file, format } }).dispatched).toBe(false);
+    }
+    expect(() => validateDispatchReadiness({ ...input, file: { ...input.file, format: "TXT" } })).toThrow("Verified supported original");
+  });
   it("requires authenticated reviewer access", () => {
     expect(() => validateDispatchReadiness({ ...input, userId: "" })).toThrow("Reviewer access");
     expect(() => validateDispatchReadiness({ ...input, role: "member" })).toThrow("Reviewer access");

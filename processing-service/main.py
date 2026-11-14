@@ -5,6 +5,7 @@ import secrets
 import shutil
 import tempfile
 import threading
+import time
 from pathlib import Path
 from uuid import UUID
 
@@ -101,11 +102,15 @@ def execute_attempt(source: AttemptRequest, ext: str, scratch: Path):
     try:
         with tempfile.TemporaryDirectory(dir=scratch) as directory:
             path = Path(directory) / f"source{ext}"
+            last_download_heartbeat = time.monotonic()
             for event in download_original(source.source_url, path, source.size_bytes, source.sha256,
                                            os.environ.get("PROCESSING_CLOUD_ORIGIN", "")):
                 received = event.get("received_bytes", 0)
-                send_progress(source, "Downloading original" if event["stage"] == "Downloading original" else "Original verified",
-                              min(20, int(received / source.size_bytes * 20)))
+                verified = event["stage"] == "Original verified"
+                if verified or time.monotonic() - last_download_heartbeat >= 30:
+                    send_progress(source, "Original verified" if verified else "Downloading original",
+                                  min(20, int(received / source.size_bytes * 20)))
+                    last_download_heartbeat = time.monotonic()
 
             if ext in {".mp4", ".mov"}:
                 phase = "extraction"
@@ -137,7 +142,7 @@ def execute_attempt(source: AttemptRequest, ext: str, scratch: Path):
             else:
                 phase = "extraction"
                 send_progress(source, "Extracting document", 35)
-                manifest = extract_document(path)
+                manifest = extract_document(path, progress=lambda _: send_progress(source, "Extracting document", 60))
                 send_progress(source, "Extracting document", 90)
 
             phase = "persistence"

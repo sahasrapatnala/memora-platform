@@ -7,7 +7,7 @@ def text_hash(value):
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
-def extract_document(path):
+def extract_document(path, progress=None):
     path = Path(path)
     ext = path.suffix.lower()
     if ext == ".pdf":
@@ -22,6 +22,8 @@ def extract_document(path):
                     raise ValueError("A PDF page exceeds the bounded extraction limit")
                 pages.append({"page_number": index + 1, "content": text,
                               "sha256": text_hash(text), "ocr_required": not bool(text.strip())})
+                if progress and (index + 1) % 25 == 0:
+                    progress(index + 1)
         if not pages:
             raise ValueError("PDF contains no pages")
         return {"kind": "document", "format": "PDF", "language": None,
@@ -57,6 +59,8 @@ def extract_document(path):
                 raise ValueError("A presentation slide exceeds the bounded extraction limit")
             slides.append({"slide_number": index + 1, "title": title, "notes": notes,
                            "content": content, "sha256": text_hash(combined)})
+            if progress and (index + 1) % 25 == 0:
+                progress(index + 1)
         if not slides:
             raise ValueError("Presentation contains no slides")
         properties = presentation.core_properties

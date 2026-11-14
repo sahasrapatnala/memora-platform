@@ -1,26 +1,30 @@
 # MEMORA Phase 2
 ## Master MVP completion
-- [ ] Phase 1: prepare coordinated dispatch and verified ingestion SQL; implement disabled-by-default secure dispatcher and worker callbacks without applying unreviewed migrations.
-- [ ] Phase 2: return bounded real video manifests; persist transcripts, frames and processing metadata; add transcript/frame timeline and timestamp navigation.
-- [ ] Phase 3: return bounded PDF/PPTX manifests including empty/OCR-required pages and notes; add page/slide viewers.
-- [ ] Phase 4: ingest source-linked knowledge idempotently and implement bounded unified search.
-- [ ] Phase 5: add Ask MEMORA with evidence-only answers and citations when a secure AI provider is configured.
-- [ ] Phase 6: implement workspace-scoped exact and explainable near-duplicate detection with conservative evidence.
-- [ ] Phase 7: implement retention approval, coordinated deletion and historical verified savings accounting.
-- [ ] Phase 8: implement offboarding inventory selection using shared duplicate analysis.
-- [ ] Phase 9: connect actual dashboard metrics and final integration states.
-- [ ] Run unit, integration and available real-file acceptance checks; document deployment blockers and local commands.
+- [x] Phase 1: prepare dispatch/ingestion SQL and disabled-by-default dispatcher, worker callbacks, fencing, leases, retries and cancellation; no unreviewed migration applied.
+- [x] Phase 2: implement bounded video manifests, private frame/thumbnail receipts, prepared persistence, transcript/frame timeline and timestamp navigation.
+- [x] Phase 3: implement PDF/PPTX manifests with empty-page/OCR status and notes, prepared persistence and page/slide viewers.
+- [x] Phase 4: prepare idempotent source-linked knowledge ingestion and implement bounded unified search.
+- [x] Phase 5: implement Ask MEMORA and grounded source briefs with citations and an insufficient-evidence path.
+- [x] Phase 6: implement exact and explainable near-duplicate analysis with conservative evidence and savings.
+- [x] Phase 7: implement gated retention approval, retained-copy verification, coordinated deletion and historical reclaimed accounting.
+- [x] Phase 8: implement offboarding cases, inventory selection and shared duplicate summaries.
+- [x] Phase 9: connect actual dashboard metrics and final integration states.
+- [x] Run 91 application tests, 17 Python tests, SQL parsing and ten signed-in screen checks; document local commands and blockers.
+- [ ] Apply reviewed migrations in order and regenerate types — awaiting migration approval.
+- [ ] Deploy the worker and run real MP4/PDF/PPTX dispatch-to-persistence acceptance — requires processor endpoint, private shared credential and enabled gates.
+- [ ] Verify second-account isolation, stale leases/tokens, deletion recovery and actual AI answers — requires live migrated environment and second account.
+- [ ] Add batched duplicate analysis above 500 pages/slides, orphan-artifact cleanup, OCR, diarization and embedding retrieval.
 ## Python dispatch integration
 - [x] Add approval-gated readiness validation that fails closed without claiming or executing jobs; verify against the actual Approved Tech Concept Hack recording.
-- [ ] Connect atomic dispatch and protected ingestion — blocked: deployed processor URL/shared credential and private generated-assets write authorization are unavailable; repository video processing still reports Blocked.
-- [ ] Verify live extraction and persisted outputs — blocked by the deployment and storage capabilities above.
+- [x] Implement asynchronous selected-job dispatch and protected callback/ingestion architecture behind a disabled feature gate.
+- [ ] Verify live extraction and persisted outputs — blocked by migration approval and independent service deployment.
 ## Request Processing action
 - [x] Add selected-original request action with eligibility, active-job status and Processing Review navigation.
 - [x] Test eligibility and existing request rules; verify existing-job details, review navigation and refresh with the actual authenticated owner.
 ## Processing approval foundation
 - [x] Add atomic reviewer decisions with a job-linked audit separate from retention authorization.
 - [x] Add review controls and a non-executing, approval-gated dispatch contract; test decision rules.
-- [ ] Verify real review and refresh persistence — blocked: current authenticated account has no workspace, original or job; no substitute records were created.
+- [x] Verify real review and refresh persistence — actual workspace contains two Uploaded originals and two Approved jobs; no processing was triggered.
 ## Secure processing requests
 - [x] Apply owner-scoped INSERT access, Uploaded-file enforcement and concurrent active-job uniqueness without changing storage.
 - [x] Add authenticated request operation with duplicate recovery and security tests; leave Python dispatch disabled.
@@ -39,7 +43,7 @@
 - [x] Raise live storage, frontend and verified-registration limits without paid upgrades.
 - [x] Replace worker multipart originals with authenticated, bounded-memory cloud downloads and disk admission checks.
 - [x] Verify actual 210 MiB private retrieval with the worker implementation and authenticated local endpoint; preserve original bytes.
-- [ ] Test upload and retrieval of the actual 1.14 GB Ericsson original — blocked: original not supplied and absent from Cloud records.
+- [ ] Test worker retrieval of the actual 1.14 GB Ericsson original — uploaded original is visible; processing retrieval has not run.
 - [ ] Connect actual worker events to persisted processing progress — blocked: independent service deployment, private endpoint credentials and durable result ingestion are unavailable.
 - [x] Document deployment, model and missing-original blockers without claiming unverified compatibility.
 ## Large-file storage compatibility

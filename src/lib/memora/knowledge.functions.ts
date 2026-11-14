@@ -3,7 +3,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { setResponseHeader } from "@tanstack/react-start/server";
 import { generateResponse, GatewayError } from "@lovable.dev/ai-gateway";
 import { z } from "zod";
-import { escapeIlike, rankEvidence } from "./knowledge-search";
+import { escapeIlike, queryTerms, rankEvidence } from "./knowledge-search";
 import { sourceCitation } from "./knowledge-source";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
@@ -64,6 +64,8 @@ export const askMemora = createServerFn({ method: "POST" })
     await requireMembership(context.supabase, data.workspaceId, context.userId);
     let chunkQuery = context.supabase.from("knowledge_chunks").select().eq("workspace_id", data.workspaceId).order("created_at", { ascending: false }).limit(500);
     if (data.fileId) chunkQuery = chunkQuery.eq("file_id", data.fileId);
+    const terms = queryTerms(data.question);
+    if (terms.length) chunkQuery = chunkQuery.or(terms.map((term) => `content.ilike.%${escapeIlike(term)}%`).join(","));
     const [chunks, files] = await Promise.all([
       chunkQuery,
       context.supabase.from("files").select("id,name").eq("workspace_id", data.workspaceId).limit(1000),

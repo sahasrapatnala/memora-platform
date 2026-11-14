@@ -12,7 +12,7 @@ export function validateDispatchReadiness(input: {
   const candidate = dispatchCandidate(input.job, input.decision);
   const { file, job } = input;
   if (file.id !== job.file_id || file.workspace_id !== job.workspace_id || file.user_id !== job.user_id || !input.ownerIsMember || file.status !== "Uploaded") throw new Error("Original is no longer eligible");
-  if (!Number.isSafeInteger(file.size_bytes) || file.size_bytes <= 0 || file.size_bytes > 5368709120 || !file.sha256 || !/^[0-9a-f]{64}$/.test(file.sha256) || !["MP4", "MOV"].includes(file.format)) throw new Error("Verified video original required");
+  if (!Number.isSafeInteger(file.size_bytes) || file.size_bytes <= 0 || file.size_bytes > 5368709120 || !file.sha256 || !/^[0-9a-f]{64}$/.test(file.sha256) || !["MP4", "MOV", "PDF", "PPTX", "DOCX"].includes(file.format)) throw new Error("Verified supported original required");
   return {
     jobId: candidate.job_id,
     status: "Blocked" as const,

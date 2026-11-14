@@ -226,6 +226,12 @@ DECLARE
   j public.processing_jobs; f public.files; v_video uuid; v_document uuid;
   v_count integer; v_expected integer; v_generated bigint; v_kind text;
 BEGIN
+  SELECT * INTO j FROM public.processing_jobs WHERE id=p_job AND workspace_id=p_workspace;
+  IF j.status='Completed' AND j.dispatch_token IS NOT NULL AND j.dispatch_token=p_token
+    AND j.dispatch_worker_id=p_worker_id AND EXISTS(SELECT 1 FROM public.processing_results r
+      WHERE r.job_id=p_job AND r.manifest_sha256=p_manifest_sha256) THEN
+    RETURN 'Completed';
+  END IF;
   j:=public.assert_processing_attempt(p_job,p_workspace,p_token,p_worker_id);
   SELECT * INTO f FROM public.files WHERE id=j.file_id AND workspace_id=p_workspace FOR SHARE;
   IF p_manifest_sha256 IS NULL OR p_manifest_sha256!~'^[0-9a-f]{64}$' OR
@@ -350,7 +356,7 @@ BEGIN
   INSERT INTO public.storage_analytics(workspace_id,file_id,generated_size_bytes,package_verified_at,reclaimed_size_bytes)
     VALUES(p_workspace,j.file_id,v_generated,pg_catalog.clock_timestamp(),0);
   UPDATE public.processing_jobs SET status='Completed',stage='Results verified',progress=100,error=NULL,
-    dispatch_error=NULL,dispatch_token=NULL,lease_expires_at=NULL WHERE id=p_job;
+    dispatch_error=NULL,lease_expires_at=NULL WHERE id=p_job;
   INSERT INTO public.activity_logs(workspace_id,user_id,file_id,file_name,action)
     VALUES(p_workspace,j.user_id,j.file_id,f.name,'Processing results verified');
   RETURN 'Completed';

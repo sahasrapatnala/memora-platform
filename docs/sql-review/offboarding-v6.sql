@@ -57,8 +57,8 @@ BEGIN
   IF NOT FOUND OR NOT EXISTS(SELECT 1 FROM public.workspace_members WHERE workspace_id=c.workspace_id AND user_id=p_actor) THEN
     RAISE EXCEPTION 'Case access required' USING ERRCODE='42501';
   END IF;
-  IF p_summary IS NULL OR p_summary->>'deletionAuthorized'<>'false' OR
-    (p_summary->>'selectedFiles')::integer<>(SELECT pg_catalog.count(*) FROM public.offboarding_case_files WHERE case_id=p_case) THEN
+  IF p_summary IS NULL OR p_summary->>'deletionAuthorized' IS DISTINCT FROM 'false' OR
+    (p_summary->>'selectedFiles')::integer IS DISTINCT FROM (SELECT pg_catalog.count(*) FROM public.offboarding_case_files WHERE case_id=p_case) THEN
     RAISE EXCEPTION 'Offboarding summary does not match its inventory';
   END IF;
   UPDATE public.offboarding_cases SET status='Analyzed',summary=p_summary WHERE id=p_case;

@@ -73,7 +73,7 @@ export function ProcessingReview() {
 
       toast.success(
         decision === "Approved"
-          ? "Approved. You can now start video processing."
+          ? "Approved. You can now start processing."
           : "Request rejected.",
       );
     } catch (error) {

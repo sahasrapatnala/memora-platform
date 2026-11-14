@@ -28,13 +28,14 @@ export const deleteApprovedOriginal = createServerFn({ method: "POST" })
     setResponseHeader("Cache-Control", "no-store");
     if (process.env["MEMORA_RETENTION_ENABLED"] !== "true") throw new Error("Verified retention deletion is disabled pending migration and end-to-end verification");
     const recommendation = await context.supabase.from("optimization_recommendations").select().eq("id", data.recommendationId).maybeSingle();
-    if (recommendation.error || !recommendation.data || recommendation.data.status !== "Approved") throw new Error("Approved retention recommendation required");
+    if (recommendation.error || !recommendation.data || !["Approved", "Deleted"].includes(recommendation.data.status)) throw new Error("Approved retention recommendation required");
     const original = await context.supabase.from("files").select().eq("id", recommendation.data.file_id).eq("workspace_id", recommendation.data.workspace_id).maybeSingle();
     if (original.error || !original.data || original.data.user_id !== context.userId || !original.data.sha256) throw new Error("Only the original owner can confirm deletion");
     const workspaceId = original.data.workspace_id;
     if (!workspaceId) throw new Error("Original workspace required");
     const approval = await context.supabase.from("approval_requests").select().eq("id", data.approvalId).eq("file_id", original.data.id).eq("workspace_id", workspaceId).is("processing_job_id", null).eq("status", "Approved").maybeSingle();
     if (approval.error || !approval.data) throw new Error("Matching retention approval required");
+    if (recommendation.data.status === "Deleted" && original.data.status === "Deleted") return { ok: true, reclaimedBytes: original.data.size_bytes };
     const retainedId = (recommendation.data as typeof recommendation.data & { retained_file_id?: string | null }).retained_file_id;
     if (!retainedId) throw new Error("Retained copy required");
     const retained = await context.supabase.from("files").select().eq("id", retainedId).eq("workspace_id", workspaceId).eq("status", "Uploaded").maybeSingle();
