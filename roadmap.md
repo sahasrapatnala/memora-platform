@@ -1,6 +1,6 @@
 # MEMORA Phase 2
 ## Master MVP completion
-- [ ] Review dispatch v2 SQL (specific job/workspace, current reviewer, three-attempt cap and stale-worker fences); application and migration deployment await approval.
+- [ ] Approve dispatch v3 SQL and coordinated ingestion rollout; live schema inspected, deployment and runtime tests remain pending approval.
 - [ ] Secure fenced dispatch, bounded trusted result ingestion and job lifecycle reconciliation.
 - [ ] Persist video/document results and private assets; add result views and bounded source-linked search.
 - [ ] Implement workspace-scoped exact and explainable near duplicates with evidence.
