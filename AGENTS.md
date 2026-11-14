@@ -51,3 +51,4 @@ use the editor.
 - Source readers retain one explicit page with deterministic ordering and zero inactive-page cache; latest results use created_at then id, because default row limits and unordered history hide content.
 - Generated summaries live separately with evidence IDs/citations and a content-sensitive request key, because refresh must preserve generated knowledge without contaminating extracted source content.
 - The local demo uses one CPU worker, authenticated model prewarm and a separate local-evidence CLI; Cloud outputs still require approved fenced ingestion, so local extraction cannot masquerade as persisted application success.
+- The video-only review migration preserves one saved video per original and existing result rows; it reuses worker callback signatures while rejecting document/speaker output, so a smaller demo path cannot silently broaden processing.

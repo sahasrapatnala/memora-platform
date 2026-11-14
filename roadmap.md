@@ -1,4 +1,8 @@
 # MEMORA Phase 2
+## Video-only SQL review
+- [x] Prepare standalone video-only migration with explicit object/permission inventory; no live application.
+- [x] Execute disposable PostgreSQL finalization, expiry, stale-token, retry and isolation tests; verify worker/dispatcher contract.
+- [x] Deliver complete SQL, test evidence and application/rollback instructions for separate approval.
 ## Hackathon demo: real video first
 - [x] Add authenticated worker readiness and a real-file local extraction command, without bypassing approved ingestion.
 - [x] Run actual speech MP4 extraction and PDF/PPTX/hash checks; distinguish local evidence from Cloud persistence.
