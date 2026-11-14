@@ -52,10 +52,11 @@ def extract_document(path, progress=None):
             notes = None
             if slide.has_notes_slide and slide.notes_slide.notes_text_frame:
                 notes = slide.notes_slide.notes_text_frame.text
+            notes = notes or None
             title = slide.shapes.title.text if slide.shapes.title is not None else None
             content = "\n".join(value for value in texts if value)
             combined = content + (("\n" + notes) if notes else "")
-            if len(combined) > 150000:
+            if len(content) > 100000 or (notes and len(notes) > 50000) or (title and len(title) > 1000):
                 raise ValueError("A presentation slide exceeds the bounded extraction limit")
             slides.append({"slide_number": index + 1, "title": title, "notes": notes,
                            "content": content, "sha256": text_hash(combined)})

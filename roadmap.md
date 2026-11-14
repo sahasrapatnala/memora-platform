@@ -1,4 +1,8 @@
 # MEMORA Phase 2
+## Focused continuation: processing and knowledge connections
+- [x] Repair worker admission/continuous lease renewal, expired-attempt retry eligibility, bounded callback delivery and review-only ingestion SQL; regression-tested without live dispatch.
+- [x] Connect source summaries independently of question keywords; real gateway streaming with labeled test evidence passed, not persisted-workspace evidence.
+- [x] Record exact changes, test evidence and approval/deployment blockers in docs/continuation-processing-report.md; processing remains disabled and migrations unapplied.
 ## Master MVP completion
 - [x] Phase 1: prepare dispatch/ingestion SQL and disabled-by-default dispatcher, worker callbacks, fencing, leases, retries and cancellation; no unreviewed migration applied.
 - [x] Phase 2: implement bounded video manifests, private frame/thumbnail receipts, prepared persistence, transcript/frame timeline and timestamp navigation.

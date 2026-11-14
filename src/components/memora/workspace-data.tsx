@@ -121,7 +121,8 @@ function useWorkspaceState() {
         if (r.error) throw r.error;
       return {
         files: files.data ?? [],
-        jobs: jobs.data ?? [],
+        // Runtime future-column adapter; replace after approved migration/type generation.
+        jobs: (jobs.data ?? []) as Array<NonNullable<typeof jobs.data>[number] & { lease_expires_at?: string | null }>,
         groups: groups.data ?? [],
         knowledge: knowledge.data ?? [],
         analytics: analytics.data ?? [],

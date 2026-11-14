@@ -400,7 +400,7 @@ function SourceBrief({ fileId }: { fileId: string }) {
   return <section className="content-section"><SectionTitle title="Grounded source brief" description="On-demand AI summary of main topics, decisions and action items; never part of the original source." />
     <Button variant="outline" disabled={!workspace || busy} onClick={async () => {
       if (!workspace || busy) return; setBusy(true);
-      try { setResult(await ask({ data: { workspaceId: workspace.id, fileId, question: "Summarize the main topics, important decisions and action items in this source. Cite exact evidence and say when each category is absent." } })); }
+      try { setResult(await ask({ data: { workspaceId: workspace.id, fileId, mode: "summary", question: "Summarize the main topics, important decisions and action items in these source excerpts. Cite exact evidence and say when each category is absent." } })); }
       catch { toast.error("Source brief could not be generated"); }
       finally { setBusy(false); }
     }}>{busy ? "Retrieving source evidence…" : "Generate source brief"}</Button>

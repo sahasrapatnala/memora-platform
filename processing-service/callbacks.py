@@ -1,5 +1,6 @@
 """Authenticated, bounded delivery of processing events and small JPEG artifacts."""
 import hashlib
+import json
 import os
 from pathlib import Path
 from urllib.parse import urlencode, urlsplit
@@ -79,4 +80,7 @@ def send_failure(request, error_code="ProcessorFailed"):
 
 def send_manifest(request, manifest):
     payload = {"action": "complete", **identity(request), "version": 1, **manifest}
-    _post(request.callback_url, json=payload, headers=_headers())
+    encoded = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    if len(encoded) > 8 * 1024**2:
+        raise ValueError("Manifest exceeds the 8 MiB ingestion limit; no partial result submitted")
+    _post(request.callback_url, data=encoded, headers={**_headers(), "Content-Type": "application/json"})

@@ -11,7 +11,7 @@ import {
   decideProcessing,
   dispatchProcessing,
 } from "@/lib/memora/api.functions";
-import { canReviewProcessing } from "@/lib/memora/processing-review";
+import { canReviewProcessing, canDispatchProcessing } from "@/lib/memora/processing-review";
 import { cancelProcessing } from "@/lib/memora/processing-cancel.functions";
 import { useWorkspace } from "./workspace-data";
 import { SectionTitle, Status } from "./shell";
@@ -189,13 +189,13 @@ export function ProcessingReview() {
                 finally { setBusy(null); }
               }}><X />Cancel</Button>}
 
-              {allowed && job.status === "Approved" && (
+              {allowed && canDispatchProcessing(job) && (
                 <Button
                   disabled={!!busy}
                   onClick={() => void processOriginal(job.id)}
                 >
                   <Play />
-                  {busy === job.id ? "Starting..." : "Start processing"}
+                  {busy === job.id ? "Starting..." : job.status === "Processing" ? "Retry expired attempt" : "Start processing"}
                 </Button>
               )}
             </div>

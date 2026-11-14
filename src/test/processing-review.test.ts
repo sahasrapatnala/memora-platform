@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { canReviewProcessing, dispatchCandidate, reviewInput, reviewProcessing } from "@/lib/memora/processing-review";
+import { canReviewProcessing, canDispatchProcessing, dispatchCandidate, reviewInput, reviewProcessing } from "@/lib/memora/processing-review";
 
 const jobId = "10000000-0000-4000-8000-000000000001";
 const workspaceId = "20000000-0000-4000-8000-000000000001";
@@ -9,6 +9,13 @@ function client(data: unknown, error: unknown = null) {
   return { rpc, value: { rpc } as unknown as Parameters<typeof reviewProcessing>[0] };
 }
 describe("processing decisions", () => {
+  it("allows retry only after a known Processing lease expires", () => {
+    const now = Date.parse("2026-11-14T10:40:00Z");
+    expect(canDispatchProcessing({ status: "Processing", lease_expires_at: "2026-11-14T10:39:59Z" }, now)).toBe(true);
+    expect(canDispatchProcessing({ status: "Processing", lease_expires_at: "2026-11-14T10:40:01Z" }, now)).toBe(false);
+    expect(canDispatchProcessing({ status: "Processing" }, now)).toBe(false);
+    expect(canDispatchProcessing({ status: "Failed" }, now)).toBe(false);
+  });
   it("allows only owner and reviewer roles", () => {
     expect(canReviewProcessing("owner")).toBe(true);
     expect(canReviewProcessing("reviewer")).toBe(true);

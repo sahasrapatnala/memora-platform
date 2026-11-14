@@ -51,10 +51,11 @@ export async function dispatchApprovedOriginal(
     throw new Error("The selected job is not currently eligible for dispatch");
   }
 
-  const source = await client.storage.from("original-files").createSignedUrl(claimed.file_storage_path, 900);
-  if (source.error || !source.data) throw new Error("Could not authorize original retrieval");
-  const endpoint = new URL("/process", processorUrl);
-  const response = await fetch(endpoint, {
+  try {
+    const source = await client.storage.from("original-files").createSignedUrl(claimed.file_storage_path, 900);
+    if (source.error || !source.data) throw new Error("Could not authorize original retrieval");
+    const endpoint = new URL("/process", processorUrl);
+    const response = await fetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${processorKey}` },
     body: JSON.stringify({
@@ -70,14 +71,18 @@ export async function dispatchApprovedOriginal(
       sha256: claimed.file_sha256,
     }),
     signal: AbortSignal.timeout(15000),
-  });
-  if (response.status !== 202) {
-    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
-    await (admin as unknown as SupabaseClient).rpc("fail_processing_attempt", {
+    });
+    if (response.status !== 202) throw new Error("The processing service did not accept the job");
+  } catch {
+    // Delivery may have reached the worker. Fence the attempt rather than retrying POST.
+    // If this write is also uncertain, leave recovery to the expired-lease selected claim.
+    await trusted.rpc("fail_processing_attempt", {
       p_job: jobId, p_workspace: workspaceId, p_token: claimed.dispatch_token,
       p_worker_id: workerId, p_error_code: "DeliveryUncertain",
-    });
-    throw new Error("The processing service did not accept the job");
+    }).then((result) => {
+      if (result.error) console.error("Dispatch failure recording rejected", { code: result.error.code });
+    }, () => { console.error("Dispatch failure recording unavailable"); });
+    throw new Error("Processing delivery was not confirmed. Refresh the job before retrying; no automatic delivery retry was made.");
   }
   return {
     jobId,

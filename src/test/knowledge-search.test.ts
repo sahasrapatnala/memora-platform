@@ -1,8 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { escapeIlike, evidenceScore, queryTerms, rankEvidence } from "@/lib/memora/knowledge-search";
+import { escapeIlike, evidenceScore, queryTerms, rankEvidence, selectAnswerEvidence } from "@/lib/memora/knowledge-search";
 import { sourceCitation } from "@/lib/memora/knowledge-source";
 
 describe("knowledge retrieval", () => {
+  it("summarizes real source evidence without requiring instruction keywords", () => {
+    const rows = [{ content: "GraalVM compiles Java ahead of time" }];
+    expect(selectAnswerEvidence(rows, "Summarize main topics and decisions", "summary")).toEqual(rows);
+    expect(selectAnswerEvidence(rows, "employee salary", "answer")).toEqual([]);
+  });
+  it("bounds source summaries to eight distributed nonempty excerpts", () => {
+    const rows = Array.from({ length: 20 }, (_, index) => ({ content: `Page ${index}` }));
+    const result = selectAnswerEvidence(rows, "summary", "summary");
+    expect(result).toHaveLength(8);
+    expect(result[0]).toEqual(rows[0]);
+    expect(result[7]).toEqual(rows[19]);
+  });
   it("ranks an exact phrase above a single common term", () => {
     expect(evidenceScore("The storage architecture decision was recorded", "storage architecture")).toBeGreaterThan(evidenceScore("storage", "storage architecture"));
   });

@@ -9,6 +9,17 @@ from document_processing import extract_document, text_hash
 
 
 class DocumentExtraction(unittest.TestCase):
+    def test_empty_notes_use_null_and_matching_content_hash(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "empty-notes.pptx"
+            presentation = Presentation()
+            slide = presentation.slides.add_slide(presentation.slide_layouts[1])
+            slide.shapes.title.text = "Compilation"
+            slide.notes_slide.notes_text_frame.text = ""
+            presentation.save(path)
+            result = extract_document(path)["slides"][0]
+        self.assertIsNone(result["notes"])
+        self.assertEqual(result["sha256"], text_hash(result["content"]))
     def test_pdf_preserves_empty_page_and_hashes(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "source.pdf"

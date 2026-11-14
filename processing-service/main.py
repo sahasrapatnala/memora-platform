@@ -17,6 +17,7 @@ from callbacks import send_failure, send_manifest, send_progress, upload_artifac
 from cloud_download import MAX_ORIGINAL_BYTES, check_capacity, download_original, validate_source
 from document_processing import extract_document
 from video_processing import process_video
+from attempt_heartbeat import AttemptHeartbeat
 
 app = FastAPI(title="MEMORA processing service")
 download_slot = threading.Lock()
@@ -93,14 +94,14 @@ def retrieve(source: SourceRequest, authorization: str | None = Header(default=N
     return StreamingResponse(events(), media_type="application/x-ndjson", headers={"Cache-Control": "no-store"})
 
 
-def execute_attempt(source: AttemptRequest, ext: str, scratch: Path):
+def execute_attempt(source: AttemptRequest, ext: str, scratch: Path, reserved=False):
     """Run after the 202 response; only fenced callbacks can change application records."""
-    if not download_slot.acquire(blocking=False):
+    if not reserved and not download_slot.acquire(blocking=False):
         send_failure(source, "ProcessorFailed")
         return
     phase = "download"
     try:
-        with tempfile.TemporaryDirectory(dir=scratch) as directory:
+        with AttemptHeartbeat(source, send_progress) as heartbeat, tempfile.TemporaryDirectory(dir=scratch) as directory:
             path = Path(directory) / f"source{ext}"
             last_download_heartbeat = time.monotonic()
             for event in download_original(source.source_url, path, source.size_bytes, source.sha256,
@@ -108,7 +109,7 @@ def execute_attempt(source: AttemptRequest, ext: str, scratch: Path):
                 received = event.get("received_bytes", 0)
                 verified = event["stage"] == "Original verified"
                 if verified or time.monotonic() - last_download_heartbeat >= 30:
-                    send_progress(source, "Original verified" if verified else "Downloading original",
+                    heartbeat.update("Original verified" if verified else "Downloading original",
                                   min(20, int(received / source.size_bytes * 20)))
                     last_download_heartbeat = time.monotonic()
 
@@ -124,7 +125,7 @@ def execute_attempt(source: AttemptRequest, ext: str, scratch: Path):
                         amount = min(60, 30 + event.get("segments", 0) // 20)
                     if stage == "Extracting keyframes":
                         amount = min(75, 60 + event.get("frames", 0) // 5)
-                    send_progress(source, stage, amount)
+                    heartbeat.update(stage, amount)
 
                 manifest = process_video(path, Path(directory) / "video-results", progress=progress)
                 phase = "artifact upload"
@@ -137,16 +138,16 @@ def execute_attempt(source: AttemptRequest, ext: str, scratch: Path):
                                             "sha256": uploaded["sha256"], "thumbnail_path": thumbnail["path"],
                                             "thumbnail_size_bytes": thumbnail["size_bytes"],
                                             "thumbnail_sha256": thumbnail["sha256"]})
-                    send_progress(source, "Uploading frame artifacts", min(95, 75 + int((index + 1) / len(manifest["frames"]) * 20)))
+                    heartbeat.update("Uploading frame artifacts", min(95, 75 + int((index + 1) / len(manifest["frames"]) * 20)))
                 manifest["frames"] = uploaded_frames
             else:
                 phase = "extraction"
-                send_progress(source, "Extracting document", 35)
-                manifest = extract_document(path, progress=lambda _: send_progress(source, "Extracting document", 60))
-                send_progress(source, "Extracting document", 90)
+                heartbeat.update("Extracting document", 35)
+                manifest = extract_document(path, progress=lambda _: heartbeat.update("Extracting document", 60))
+                heartbeat.update("Extracting document", 90)
 
             phase = "persistence"
-            send_progress(source, "Persisting results", 97)
+            heartbeat.update("Persisting results", 97)
             send_manifest(source, manifest)
     except Exception as error:
         print(f"Processing failed for {source.job_id}: {error!r}", flush=True)
@@ -170,5 +171,7 @@ def process(source: AttemptRequest, background: BackgroundTasks, authorization: 
         validate_callback_url(source.callback_url)
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from None
-    background.add_task(execute_attempt, source, ext, scratch)
+    if not download_slot.acquire(blocking=False):
+        raise HTTPException(status_code=503, detail="Processor busy; no attempt accepted")
+    background.add_task(execute_attempt, source, ext, scratch, reserved=True)
     return JSONResponse(status_code=202, content={"accepted": True, "job_id": str(source.job_id)})

@@ -192,7 +192,7 @@ BEGIN
   END IF;
   j:=public.assert_processing_attempt(p_job,p_workspace,p_token,p_worker_id);
   expiry:=pg_catalog.clock_timestamp()+pg_catalog.make_interval(secs=>p_lease_seconds);
-  UPDATE public.processing_jobs SET stage=p_stage,progress=pg_catalog.greatest(pg_catalog.coalesce(progress,0),p_progress),
+  UPDATE public.processing_jobs SET stage=p_stage,progress=GREATEST(COALESCE(progress,0),p_progress),
     heartbeat_at=pg_catalog.clock_timestamp(),lease_expires_at=expiry WHERE id=j.id;
   RETURN expiry;
 END $fn$;
@@ -313,8 +313,9 @@ BEGIN
       SELECT p_workspace,j.file_id,p_job,pg_catalog.format('segment:%s',x.ord),x.content,x.content_sha256,
         pg_catalog.jsonb_build_object('type','video_segment','video_id',v_video,'start_seconds',x.start_seconds,
           'end_seconds',x.end_seconds,'speaker_key',x.speaker_key,'processing_job_id',p_job)
-      FROM pg_catalog.jsonb_to_recordset(p_manifest->'transcript_segments') WITH ORDINALITY
-        AS x(start_seconds double precision,end_seconds double precision,content text,content_sha256 text,speaker_key text,ord bigint);
+      FROM ROWS FROM (pg_catalog.jsonb_to_recordset(p_manifest->'transcript_segments')
+        AS (start_seconds double precision,end_seconds double precision,content text,content_sha256 text,speaker_key text))
+        WITH ORDINALITY AS x(start_seconds,end_seconds,content,content_sha256,speaker_key,ord);
   ELSE
     INSERT INTO public.documents(workspace_id,file_id,processing_job_id,metadata)
       VALUES(p_workspace,j.file_id,p_job,p_manifest->'metadata') RETURNING id INTO v_document;
@@ -338,18 +339,18 @@ BEGIN
       INSERT INTO public.document_slides(workspace_id,document_id,processing_job_id,slide_number,title,notes,content,sha256,size_bytes)
         SELECT p_workspace,v_document,p_job,x.slide_number,x.title,x.notes,x.content,x.sha256,pg_catalog.octet_length(x.content)
         FROM pg_catalog.jsonb_to_recordset(p_manifest->'slides') AS x(slide_number integer,title text,notes text,content text,sha256 text)
-        WHERE x.slide_number>0 AND x.sha256=pg_catalog.encode(extensions.digest(pg_catalog.convert_to(x.content||pg_catalog.coalesce(E'\n'||x.notes,''),'UTF8'),'sha256'),'hex');
+        WHERE x.slide_number>0 AND x.sha256=pg_catalog.encode(extensions.digest(pg_catalog.convert_to(x.content||COALESCE(E'\n'||x.notes,''),'UTF8'),'sha256'),'hex');
       GET DIAGNOSTICS v_count=ROW_COUNT;
       IF v_count<>pg_catalog.jsonb_array_length(p_manifest->'slides') THEN RAISE EXCEPTION 'Invalid or missing presentation slides'; END IF;
       INSERT INTO public.knowledge_chunks(workspace_id,file_id,processing_job_id,source_key,content,content_sha256,source_reference)
-        SELECT p_workspace,j.file_id,p_job,'slide:'||x.slide_number,x.content||pg_catalog.coalesce(E'\n'||x.notes,''),x.sha256,
+        SELECT p_workspace,j.file_id,p_job,'slide:'||x.slide_number,x.content||COALESCE(E'\n'||x.notes,''),x.sha256,
           pg_catalog.jsonb_build_object('type','document_slide','document_id',v_document,'slide_number',x.slide_number,
             'title',x.title,'processing_job_id',p_job)
         FROM pg_catalog.jsonb_to_recordset(p_manifest->'slides') AS x(slide_number integer,title text,notes text,content text,sha256 text);
     END IF;
   END IF;
 
-  SELECT pg_catalog.coalesce(pg_catalog.sum(size_bytes),0) INTO v_generated FROM public.processing_artifacts WHERE job_id=p_job;
+  SELECT COALESCE(pg_catalog.sum(size_bytes),0) INTO v_generated FROM public.processing_artifacts WHERE job_id=p_job;
   INSERT INTO public.processing_results(job_id,workspace_id,file_id,kind,language,duration_seconds,metadata,manifest_sha256,completed_at)
     VALUES(p_job,p_workspace,j.file_id,v_kind,p_manifest->>'language',(p_manifest->>'duration_seconds')::double precision,
       p_manifest->'metadata',p_manifest_sha256,pg_catalog.clock_timestamp());

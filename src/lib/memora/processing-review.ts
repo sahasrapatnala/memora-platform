@@ -8,6 +8,13 @@ export const reviewInput = z.object({
 }).strict();
 export const canReviewProcessing = (role?: string) => role === "owner" || role === "reviewer";
 
+// Eligibility is a hint only: the locked claim RPC rechecks the authoritative lease.
+export function canDispatchProcessing(job: { status: string; lease_expires_at?: string | null }, now = Date.now()) {
+  if (job.status === "Approved") return true;
+  const expiry = job.lease_expires_at ? Date.parse(job.lease_expires_at) : NaN;
+  return job.status === "Processing" && Number.isFinite(expiry) && expiry <= now;
+}
+
 export async function reviewProcessing(
   client: Pick<SupabaseClient<Database>, "rpc">, userId: string, input: z.infer<typeof reviewInput>,
 ) {
@@ -30,10 +37,10 @@ export interface ProcessingDispatchCandidate {
   dispatch_status: "Not connected";
 }
 export function dispatchCandidate(
-  job: { id: string; file_id: string; workspace_id: string | null; status: string },
+  job: { id: string; file_id: string; workspace_id: string | null; status: string; lease_expires_at?: string | null },
   decision: { id: string; processing_job_id: string | null; status: string; file_id: string | null; workspace_id: string | null } | undefined,
 ): ProcessingDispatchCandidate {
-  if (job.status !== "Approved" || !job.workspace_id || !decision || decision.status !== "Approved" || decision.processing_job_id !== job.id || decision.file_id !== job.file_id || decision.workspace_id !== job.workspace_id) {
+  if (!canDispatchProcessing(job) || !job.workspace_id || !decision || decision.status !== "Approved" || decision.processing_job_id !== job.id || decision.file_id !== job.file_id || decision.workspace_id !== job.workspace_id) {
     throw new Error("An approved matching processing decision is required");
   }
   return { job_id: job.id, file_id: job.file_id, workspace_id: job.workspace_id, decision_id: decision.id, dispatch_status: "Not connected" };

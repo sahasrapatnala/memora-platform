@@ -28,3 +28,12 @@ export function rankEvidence<T extends { content: string }>(rows: T[], query: st
 export function escapeIlike(value: string) {
   return value.replace(/[\\%_]/g, (character) => `\\${character}`);
 }
+
+export function selectAnswerEvidence<T extends { content: string }>(rows: T[], question: string, mode: "answer" | "summary") {
+  // Summaries must not require the source to literally say “summarize” or “action items”.
+  const nonempty = rows.filter((row) => row.content.trim());
+  if (mode === "answer") return rankEvidence(nonempty, question, 8);
+  if (nonempty.length <= 8) return nonempty;
+  return Array.from({ length: 8 }, (_, index) => nonempty[Math.floor(index * (nonempty.length - 1) / 7)])
+    .filter((row): row is T => row !== undefined);
+}

@@ -2,7 +2,7 @@ import os
 import unittest
 from unittest.mock import patch
 from fastapi.testclient import TestClient
-from main import app
+from main import app, download_slot
 
 class ServiceRules(unittest.TestCase):
     def test_requires_private_worker_auth(self):
@@ -48,11 +48,31 @@ class ServiceRules(unittest.TestCase):
                 patch('main.execute_attempt') as execute:
             response = TestClient(app).post('/process', json=descriptor,
                                            headers={'Authorization': 'Bearer unit-test-only'})
+            # The mock does not execute the real worker's finally/release.
+            download_slot.release()
         self.assertEqual(response.status_code, 202)
         self.assertEqual(set(response.json()), {'accepted', 'job_id'})
         self.assertNotIn('dispatch_token', response.text)
         self.assertNotIn('source_url', response.text)
         execute.assert_called_once()
+
+    def test_busy_worker_rejects_before_accepting_background_work(self):
+        descriptor = {'file_id': '00000000-0000-0000-0000-000000000001',
+            'workspace_id': '00000000-0000-0000-0000-000000000002',
+            'job_id': '00000000-0000-0000-0000-000000000003',
+            'dispatch_token': '00000000-0000-0000-0000-000000000004',
+            'worker_id': 'worker', 'callback_url': 'https://app.example.test/api/public/processing',
+            'name': 'source.mp4', 'source_url': 'https://cloud.example.test/a',
+            'size_bytes': 3, 'sha256': '0' * 64}
+        download_slot.acquire()
+        try:
+            with patch('main.authorize'), patch('main.validate_request', return_value=('.mp4', '/tmp')), \
+                    patch('main.validate_callback_url'), patch('main.execute_attempt') as execute:
+                response = TestClient(app).post('/process', json=descriptor)
+            self.assertEqual(response.status_code, 503)
+            execute.assert_not_called()
+        finally:
+            download_slot.release()
 
 if __name__ == '__main__':
     unittest.main()

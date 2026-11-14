@@ -5,10 +5,24 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from callbacks import send_progress, upload_artifact, validate_callback_url
+from callbacks import send_progress, send_manifest, upload_artifact, validate_callback_url
 
 
 class CallbackRules(unittest.TestCase):
+    @patch("callbacks._post")
+    def test_oversized_manifest_is_rejected_before_delivery(self, post):
+        with self.assertRaisesRegex(ValueError, "8 MiB"):
+            send_manifest(self.request(), {"content": "x" * (8 * 1024**2)})
+        post.assert_not_called()
+
+    @patch("callbacks._post")
+    def test_manifest_delivery_uses_utf8_bytes(self, post):
+        with patch.dict(os.environ, {"PROCESSING_API_KEY": "test-key"}):
+            send_manifest(self.request(), {"content": "Knowledge café"})
+        import json
+        payload = json.loads(post.call_args.kwargs["data"])
+        self.assertEqual(payload["content"], "Knowledge café")
+        self.assertEqual(payload["action"], "complete")
     def request(self):
         return SimpleNamespace(job_id="11111111-1111-4111-8111-111111111111",
             workspace_id="22222222-2222-4222-8222-222222222222",
