@@ -10,11 +10,25 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   decideProcessing,
   dispatchProcessing,
+  getDispatchReadiness,
 } from "@/lib/memora/api.functions";
 import { canReviewProcessing, canDispatchProcessing } from "@/lib/memora/processing-review";
 import { cancelProcessing } from "@/lib/memora/processing-cancel.functions";
 import { useWorkspace } from "./workspace-data";
 import { SectionTitle, Status } from "./shell";
+
+function VideoReadiness({ jobId, workspaceId, busy, onStart, retry }: { jobId: string; workspaceId: string; busy: boolean; onStart: () => void; retry: boolean }) {
+  const inspect = useServerFn(getDispatchReadiness);
+  const readiness = useQuery({ queryKey: ["video-dispatch-readiness", workspaceId, jobId], queryFn: () => inspect({ data: { jobId, workspaceId } }), refetchInterval: 30000 });
+  return <div className="space-y-2">
+    <p role="status">{readiness.isPending ? "Checking video processing readiness…" : readiness.error ? "Video readiness could not be verified" : readiness.data?.schemaInstalled ? "Video-only database installed" : "Video-only database could not be verified"}</p>
+    {readiness.data && <>
+      <p>{readiness.data.readAccessVerified ? "Workspace read access verified" : "Workspace read access could not be verified"}</p>
+      {readiness.data.blockers.map((blocker) => <p key={blocker}>{blocker}</p>)}
+    </>}
+    <Button disabled={busy || readiness.data?.canStart !== true} onClick={onStart}><Play />{busy ? "Starting..." : retry ? "Retry expired attempt" : "Start processing"}</Button>
+  </div>;
+}
 
 export function ProcessingReview() {
   const { user, workspace, data, refresh } = useWorkspace();
@@ -73,7 +87,7 @@ export function ProcessingReview() {
 
       toast.success(
         decision === "Approved"
-          ? "Approved. You can now start processing."
+          ? "Approved. Processing remains subject to demo readiness and enablement."
           : "Request rejected.",
       );
     } catch (error) {
@@ -190,13 +204,7 @@ export function ProcessingReview() {
               }}><X />Cancel</Button>}
 
               {allowed && canDispatchProcessing(job) && (
-                <Button
-                  disabled={!!busy}
-                  onClick={() => void processOriginal(job.id)}
-                >
-                  <Play />
-                  {busy === job.id ? "Starting..." : job.status === "Processing" ? "Retry expired attempt" : "Start processing"}
-                </Button>
+                <VideoReadiness jobId={job.id} workspaceId={workspace.id} busy={!!busy} retry={job.status === "Processing"} onStart={() => void processOriginal(job.id)} />
               )}
             </div>
           </div>

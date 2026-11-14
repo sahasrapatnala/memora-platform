@@ -1,5 +1,6 @@
 # MEMORA Phase 2
 ## Video-only SQL review
+- [x] Recognize installed video-only schema and workspace reads separately from disabled processing and missing worker configuration; verify signed-in readiness without dispatch and retain independent ACL verification.
 - [x] Prepare and test minimal two-table permission correction from exact live ACL/default-role evidence; no live permission changes before approval.
 - [x] Apply only approved video-demo-v1 byte-for-byte through the managed tool; regenerate types and rerun 104 application tests without enabling processing.
 - [x] Apply approved two-table revocation; live effective grants confirm client SELECT-only and unchanged service_role/RLS; 25 isolated SQL groups and 104 app tests pass.

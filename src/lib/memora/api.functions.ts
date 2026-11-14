@@ -4,7 +4,7 @@ import { z } from "zod";
 import { validateFile } from "./data";
 import { canDeleteOriginal } from "./file-rules";
 import { createProcessingRequest, processingRequestInput } from "./processing-request";
-import { setResponseHeader } from "@tanstack/react-start/server";
+import { getRequestHeader, setResponseHeader } from "@tanstack/react-start/server";
 import { reviewInput, reviewProcessing } from "./processing-review";
 import { validateDispatchReadiness } from "./dispatch-readiness";
 
@@ -25,7 +25,12 @@ export const getDispatchReadiness = createServerFn({ method: "POST" })
       context.supabase.from("workspace_members").select("id").eq("workspace_id", data.workspaceId).eq("user_id", job.user_id).maybeSingle(),
     ]);
     if (fileResult.error || !fileResult.data || decisionResult.error || ownerMembership.error) throw new Error("Dispatch eligibility could not be verified");
-    return validateDispatchReadiness({ job, file: fileResult.data, decision: decisionResult.data ?? undefined, userId: context.userId, role: membership.data.role, ownerIsMember: !!ownerMembership.data });
+    const { inspectVideoDemoCapabilities } = await import("./processing-capabilities.server");
+    const capabilities = await inspectVideoDemoCapabilities(getRequestHeader("authorization"));
+    return validateDispatchReadiness({ job, file: fileResult.data, decision: decisionResult.data ?? undefined, userId: context.userId, role: membership.data.role, ownerIsMember: !!ownerMembership.data,
+      capabilities, processingEnabled: process.env["MEMORA_PROCESSING_ENABLED"] === "true",
+      workerConfigured: !!(process.env["PROCESSING_API_URL"] && process.env["PROCESSING_API_KEY"] && process.env["PROCESSING_CALLBACK_URL"]),
+    });
   });
 
 export const decideProcessing = createServerFn({ method: "POST" })

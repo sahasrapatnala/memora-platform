@@ -9,7 +9,7 @@ const input = {
 describe("fail-closed dispatch readiness", () => {
   it("never claims or dispatches even an approved eligible video while capabilities are missing", () => {
     expect(validateDispatchReadiness(input)).toMatchObject({ jobId: "job", dispatched: false, status: "Blocked" });
-    expect(validateDispatchReadiness(input).blockers).toHaveLength(4);
+    expect(validateDispatchReadiness(input).canStart).toBe(false);
   });
   it("accepts supported document formats without claiming or dispatching", () => {
     for (const format of ["PDF", "PPTX", "DOCX"]) {
@@ -40,5 +40,15 @@ describe("fail-closed dispatch readiness", () => {
     for (const file of [{ ...input.file, size_bytes: 0 }, { ...input.file, size_bytes: 5368709121 }, { ...input.file, sha256: null }]) {
       expect(() => validateDispatchReadiness({ ...input, file })).toThrow();
     }
+  });
+  it("recognizes installed video-only capabilities without enabling execution", () => {
+    const result = validateDispatchReadiness({ ...input, capabilities: { schemaInstalled: true, permissionsVerified: true }, processingEnabled: false, workerConfigured: false });
+    expect(result).toMatchObject({ schemaInstalled: true, permissionsVerified: true, architecture: "Video-only demo", processingEnabled: false, canStart: false, dispatched: false });
+  });
+  it("never allows documents through video-only readiness", () => {
+    expect(validateDispatchReadiness({ ...input, capabilities: { schemaInstalled: true, permissionsVerified: true }, processingEnabled: true, workerConfigured: true, file: { ...input.file, format: "PDF" } }).canStart).toBe(false);
+  });
+  it("requires both permissions and execution gate for the start control", () => {
+    expect(validateDispatchReadiness({ ...input, capabilities: { schemaInstalled: true, permissionsVerified: false }, processingEnabled: true, workerConfigured: true }).canStart).toBe(false);
   });
 });

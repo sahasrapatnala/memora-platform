@@ -52,3 +52,4 @@ use the editor.
 - Generated summaries live separately with evidence IDs/citations and a content-sensitive request key, because refresh must preserve generated knowledge without contaminating extracted source content.
 - The local demo uses one CPU worker, authenticated model prewarm and a separate local-evidence CLI; Cloud outputs still require approved fenced ingestion, so local extraction cannot masquerade as persisted application success.
 - The video-only review migration preserves one saved video per original and existing result rows; it reuses worker callback signatures while rejecting document/speaker output, so a smaller demo path cannot silently broaden processing.
+- Video readiness uses trusted read-only API schema metadata and membership-scoped zero-row reads after reviewer authorization; managed OpenAPI cannot certify client ACLs, so installed schema, independent permission verification and execution gate remain separate.

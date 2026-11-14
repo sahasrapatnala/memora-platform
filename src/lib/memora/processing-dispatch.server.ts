@@ -10,7 +10,7 @@ export async function dispatchApprovedOriginal(
 ) {
   const { jobId, workspaceId, userId } = input;
   if (process.env["MEMORA_PROCESSING_ENABLED"] !== "true") {
-    throw new Error("Processing is disabled until the reviewed dispatch and ingestion migration is applied and verified");
+    throw new Error("Video processing is disabled pending separate demo approval. Database installation does not enable processing.");
   }
   const processorUrl = process.env["PROCESSING_API_URL"];
   const processorKey = process.env["PROCESSING_API_KEY"];
@@ -29,6 +29,7 @@ export async function dispatchApprovedOriginal(
   dispatchCandidate(jobResult.data, decision.data);
   const fileResult = await client.from("files").select().eq("id", jobResult.data.file_id).eq("workspace_id", workspaceId).maybeSingle();
   if (fileResult.error || !fileResult.data || fileResult.data.status !== "Uploaded") throw new Error("Uploaded original required");
+  if (!["MP4", "MOV"].includes(fileResult.data.format)) throw new Error("The installed demo supports MP4 and MOV only");
 
   // Prewarm separately: model downloads may exceed the 15-second dispatch budget.
   // Failure must not consume a fenced attempt or leave an approved job Processing.
