@@ -52,3 +52,10 @@ describe("fail-closed dispatch readiness", () => {
     expect(validateDispatchReadiness({ ...input, capabilities: { schemaInstalled: true, permissionsVerified: false }, processingEnabled: true, workerConfigured: true }).canStart).toBe(false);
   });
 });
+describe("readiness runtime reasons", () => {
+  it("shows the actual non-secret runtime cause and still blocks start", () => {
+    const result = validateDispatchReadiness({ ...input, processingEnabled: true, workerConfigured: true, capabilities: { schemaInstalled: false, permissionsVerified: false, reason: "Server process is missing managed Cloud binding: SUPABASE_SERVICE_ROLE_KEY" } });
+    expect(result.canStart).toBe(false);
+    expect(result.blockers[0]).toBe("Runtime check failed: Server process is missing managed Cloud binding: SUPABASE_SERVICE_ROLE_KEY");
+  });
+});

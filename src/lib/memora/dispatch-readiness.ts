@@ -7,7 +7,7 @@ export function validateDispatchReadiness(input: {
   userId: string;
   role: string | undefined;
   ownerIsMember: boolean;
-  capabilities?: { schemaInstalled: boolean; permissionsVerified: boolean; readAccessVerified?: boolean };
+  capabilities?: { schemaInstalled: boolean; permissionsVerified: boolean; readAccessVerified?: boolean; reason?: string };
   processingEnabled?: boolean;
   workerConfigured?: boolean;
 }) {
@@ -30,6 +30,7 @@ export function validateDispatchReadiness(input: {
     processingEnabled: input.processingEnabled === true,
     canStart: schemaInstalled && permissionsVerified && videoSupported && input.processingEnabled === true && input.workerConfigured === true,
     blockers: [
+      ...(input.capabilities?.reason ? [`Runtime check failed: ${input.capabilities.reason}`] : []),
       ...(!schemaInstalled ? ["Video-only processing database capabilities could not be verified"] : []),
       ...(!permissionsVerified ? ["Client write restrictions require the separate database permission verification; readiness does not change permissions"] : []),
       ...(!videoSupported ? ["The installed demo supports MP4 and MOV only"] : []),
