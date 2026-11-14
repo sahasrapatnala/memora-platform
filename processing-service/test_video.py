@@ -28,7 +28,7 @@ print("Starting MEMORA video processing...")
 result = process_video(video, output)
 
 summary = {
-    "language": result["transcript"]["language"],
+    "language": result["language"],
     "segments": len(result["transcript_segments"]),
     "frames": len(result["frames"]),
     "duration": result["duration_seconds"],

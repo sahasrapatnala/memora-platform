@@ -5,6 +5,30 @@ from fastapi.testclient import TestClient
 from main import app, download_slot
 
 class ServiceRules(unittest.TestCase):
+    def test_readiness_requires_private_auth(self):
+        with patch.dict(os.environ, {'PROCESSING_API_KEY': 'unit-test-only'}), patch('main.get_model') as model:
+            response = TestClient(app).get('/ready')
+        self.assertEqual(response.status_code, 401)
+        model.assert_not_called()
+
+    def test_readiness_loads_real_configured_model_before_dispatch(self):
+        with patch.dict(os.environ, {'PROCESSING_API_KEY': 'unit-test-only'}), \
+                patch('main.shutil.which', return_value='/usr/bin/ffmpeg'), \
+                patch('main.check_capacity'), patch('main.get_model') as model:
+            response = TestClient(app).get('/ready', headers={'Authorization': 'Bearer unit-test-only'})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['model'], 'small')
+        self.assertTrue(response.json()['ready'])
+        model.assert_called_once()
+        self.assertFalse(download_slot.locked())
+
+    def test_readiness_failure_never_claims_ready_and_releases_slot(self):
+        with patch.dict(os.environ, {'PROCESSING_API_KEY': 'unit-test-only'}), \
+                patch('main.shutil.which', return_value=None):
+            response = TestClient(app).get('/ready', headers={'Authorization': 'Bearer unit-test-only'})
+        self.assertEqual(response.status_code, 503)
+        self.assertFalse(download_slot.locked())
+
     def test_requires_private_worker_auth(self):
         with patch.dict(os.environ, {'PROCESSING_API_KEY': 'unit-test-only'}):
             response = TestClient(app).post('/retrieve', json={

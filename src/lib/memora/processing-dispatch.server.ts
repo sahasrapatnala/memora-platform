@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { dispatchCandidate } from "./processing-review";
 import { validProcessingEndpoint } from "./processing-endpoints";
+import { requireWorkerReady } from "./worker-readiness.server";
 
 export async function dispatchApprovedOriginal(
   client: SupabaseClient<Database>,
@@ -28,6 +29,10 @@ export async function dispatchApprovedOriginal(
   dispatchCandidate(jobResult.data, decision.data);
   const fileResult = await client.from("files").select().eq("id", jobResult.data.file_id).eq("workspace_id", workspaceId).maybeSingle();
   if (fileResult.error || !fileResult.data || fileResult.data.status !== "Uploaded") throw new Error("Uploaded original required");
+
+  // Prewarm separately: model downloads may exceed the 15-second dispatch budget.
+  // Failure must not consume a fenced attempt or leave an approved job Processing.
+  await requireWorkerReady(processorUrl, processorKey);
 
   const workerId = `app-${crypto.randomUUID()}`;
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -71,6 +76,7 @@ export async function dispatchApprovedOriginal(
       sha256: claimed.file_sha256,
     }),
     signal: AbortSignal.timeout(15000),
+    redirect: "error",
     });
     if (response.status !== 202) throw new Error("The processing service did not accept the job");
   } catch {

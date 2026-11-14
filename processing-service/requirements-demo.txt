@@ -1,0 +1,14 @@
+# CPU-only hackathon extraction; no diarization/GPU platform needed.
+fastapi>=0.115
+uvicorn>=0.30
+requests>=2.32
+opencv-python-headless>=4.10
+PyMuPDF>=1.24
+python-pptx>=1.0
+python-docx>=1.1
+Pillow>=10.4
+ImageHash>=4.3
+faster-whisper>=1.1
+# PyAV 19 removed metadata_errors; Faster-Whisper 1.2.1 still supplies it.
+av==18.1.0
+httpx>=0.28

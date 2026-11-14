@@ -35,6 +35,10 @@ $env:PROCESSING_SCRATCH_DIR = "<dedicated-writable-scratch-directory>"
 uvicorn main:app --host 127.0.0.1 --port 8000
 ```
 
-FFmpeg must be installed and available on `PATH`. Run unit tests with `python -m unittest test_cloud_download.py test_service.py test_rules.py test_documents.py test_callbacks.py`. `test_api_local.py` is an opt-in real-video extraction smoke test and requires `test-output/memora-api-test.mp4`; it does not test database persistence.
+FFmpeg must be installed and available on `PATH`. For the CPU-only hackathon, install `requirements-demo.txt` instead; it omits unused diarization and pins the PyAV version verified with Faster-Whisper. Run unit tests with `python -m unittest test_cloud_download test_service test_rules test_documents test_callbacks test_demo_extract`. `test_api_local.py` is an opt-in real-video extraction smoke test and requires `test-output/memora-api-test.mp4`; it does not test database persistence.
+
+`GET /health` reports liveness only. `GET /ready` requires the private bearer and loads the actual CPU Whisper model, checks FFmpeg, extraction imports and scratch capacity. Run this once locally to download/warm the model before dispatch. A busy worker returns 503; a failed readiness check never reports ready. The application checks authenticated readiness before claiming an approved job.
+
+Actual local-file command (no Cloud writes): `python demo_extract.py "C:\Demo\speech.mp4" --output "C:\Demo\video-evidence"`. Output must be a new directory. It saves timestamps, genuine frames/thumbnails, hashes and clearly labeled local evidence. Silent video does not pass speech acceptance. Full PowerShell/tunnel/demo steps and current blockers are in `docs/hackathon-demo.md` at the project root.
 
 Worker retrieval restarts from the beginning after interruption; this is distinct from resumable browser uploads. Deployment, model download, real-video processing, application callback authentication and durable ingestion must all be verified before enabling production dispatch.

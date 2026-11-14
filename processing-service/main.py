@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from callbacks import send_failure, send_manifest, send_progress, upload_artifact, validate_callback_url
 from cloud_download import MAX_ORIGINAL_BYTES, check_capacity, download_original, validate_source
 from document_processing import extract_document
-from video_processing import process_video
+from video_processing import get_model, process_video
 from attempt_heartbeat import AttemptHeartbeat
 
 app = FastAPI(title="MEMORA processing service")
@@ -61,9 +61,30 @@ def validate_request(source):
 
 @app.get("/health")
 def health():
-    scratch = Path(os.environ.get("PROCESSING_SCRATCH_DIR", tempfile.gettempdir()))
-    return {"service": "memora-processor", "status": "available", "models_loaded": False,
-            "max_original_bytes": MAX_ORIGINAL_BYTES, "scratch_free_bytes": shutil.disk_usage(scratch).free}
+    return {"service": "memora-processor", "status": "available"}
+
+
+@app.get("/ready")
+def ready(authorization: str | None = Header(default=None)):
+    """Authenticated CPU model prewarm before claiming a real approved job."""
+    authorize(authorization)
+    if not download_slot.acquire(blocking=False):
+        raise HTTPException(status_code=503, detail="Processor busy")
+    try:
+        scratch = Path(os.environ.get("PROCESSING_SCRATCH_DIR", tempfile.gettempdir()))
+        if not shutil.which("ffmpeg"):
+            raise ValueError("FFmpeg is unavailable")
+        check_capacity(scratch, 1)
+        get_model()
+        import cv2
+        import fitz
+        import pptx
+        return {"service": "memora-processor", "ready": True, "model": "small",
+                "device": "cpu", "compute_type": "int8", "max_original_bytes": MAX_ORIGINAL_BYTES}
+    except Exception:
+        raise HTTPException(status_code=503, detail="Readiness failed; check FFmpeg, dependencies, model access and scratch capacity") from None
+    finally:
+        download_slot.release()
 
 
 @app.post("/retrieve")

@@ -1,4 +1,9 @@
 # MEMORA Phase 2
+## Hackathon demo: real video first
+- [x] Add authenticated worker readiness and a real-file local extraction command, without bypassing approved ingestion.
+- [x] Run actual speech MP4 extraction and PDF/PPTX/hash checks; distinguish local evidence from Cloud persistence.
+- [x] Save exact PowerShell startup/tunnel/demo instructions and remaining approval blockers.
+- [ ] Run uploaded-file to persisted-result demo — blocked by reviewed migration approval and configured authenticated local tunnel.
 ## Critical pre-deployment corrections
 - [x] Fence final completion and artifact receipts; prove delayed expiry rollback in isolated PostgreSQL.
 - [x] Harden draft migration preflights and document isolated acceptance; preserve historical 0009.
