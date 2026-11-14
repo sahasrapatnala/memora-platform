@@ -23,6 +23,9 @@ function VideoReadiness({ jobId, workspaceId, busy, onStart, retry }: { jobId: s
   return <div className="space-y-2">
     <p role="status">{readiness.isPending ? "Checking video processing readiness…" : readiness.error ? "Video readiness could not be verified" : readiness.data?.schemaInstalled ? "Video-only database installed" : "Video-only database could not be verified"}</p>
     {readiness.data && <>
+      <p>Signed in to Lovable Cloud from this browser</p>
+      <p>{readiness.data.bindingAvailable ? "Cloud managed credential available to this server" : "Cloud managed credential not available to this server"}</p>
+      <p>{readiness.data.privilegedConnectionVerified ? "Privileged server database connection working" : "Privileged server database connection not verified"}</p>
       <p>{readiness.data.readAccessVerified ? "Workspace read access verified" : "Workspace read access could not be verified"}</p>
       {readiness.data.blockers.map((blocker) => <p key={blocker}>{blocker}</p>)}
     </>}

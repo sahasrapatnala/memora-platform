@@ -11,10 +11,16 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { loadEnv } from "vite";
 import { cloudPublicDefines } from "./config/cloud-public-env";
 
+const pickVite = (env: NodeJS.ProcessEnv) =>
+  Object.fromEntries(Object.entries(env).filter(([k]) => k.startsWith("VITE_")));
+
 export default defineConfig(({ mode }) => ({
   // Explicit replacements also cover bracket access in the generated Cloud client.
   // Fail before deployment rather than shipping a browser with missing settings.
-  define: cloudPublicDefines(loadEnv(mode, process.cwd(), "VITE_")),
+  define: cloudPublicDefines(
+    { ...loadEnv(mode, process.cwd(), "VITE_"), ...pickVite(process.env) },
+    { strict: mode === "production" },
+  ),
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this

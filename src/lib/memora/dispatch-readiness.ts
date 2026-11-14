@@ -7,7 +7,7 @@ export function validateDispatchReadiness(input: {
   userId: string;
   role: string | undefined;
   ownerIsMember: boolean;
-  capabilities?: { schemaInstalled: boolean; permissionsVerified: boolean; readAccessVerified?: boolean; reason?: string };
+  capabilities?: { schemaInstalled: boolean; permissionsVerified: boolean; readAccessVerified?: boolean; bindingAvailable?: boolean; privilegedConnectionVerified?: boolean; reason?: string };
   processingEnabled?: boolean;
   workerConfigured?: boolean;
 }) {
@@ -27,6 +27,8 @@ export function validateDispatchReadiness(input: {
     schemaInstalled,
     permissionsVerified,
     readAccessVerified: input.capabilities?.readAccessVerified === true,
+    bindingAvailable: input.capabilities?.bindingAvailable === true,
+    privilegedConnectionVerified: input.capabilities?.privilegedConnectionVerified === true,
     processingEnabled: input.processingEnabled === true,
     canStart: schemaInstalled && permissionsVerified && videoSupported && input.processingEnabled === true && input.workerConfigured === true,
     blockers: [

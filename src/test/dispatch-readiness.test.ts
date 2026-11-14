@@ -59,3 +59,15 @@ describe("readiness runtime reasons", () => {
     expect(result.blockers[0]).toBe("Runtime check failed: Server process is missing managed Cloud binding: SUPABASE_SERVICE_ROLE_KEY");
   });
 });
+describe("readiness distinguishes credential and connection states", () => {
+  it("reports a missing server credential separately from a working privileged connection", () => {
+    const missing = validateDispatchReadiness({ ...input, capabilities: { schemaInstalled: false, permissionsVerified: false, bindingAvailable: false, privilegedConnectionVerified: false } });
+    expect(missing.bindingAvailable).toBe(false);
+    expect(missing.privilegedConnectionVerified).toBe(false);
+    const working = validateDispatchReadiness({ ...input, capabilities: { schemaInstalled: true, permissionsVerified: false, bindingAvailable: true, privilegedConnectionVerified: true, readAccessVerified: true } });
+    expect(working).toMatchObject({ bindingAvailable: true, privilegedConnectionVerified: true, readAccessVerified: true, canStart: false });
+  });
+  it("never reports a working connection when the capability check omits it", () => {
+    expect(validateDispatchReadiness({ ...input, capabilities: { schemaInstalled: true, permissionsVerified: false } }).privilegedConnectionVerified).toBe(false);
+  });
+});

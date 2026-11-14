@@ -26,3 +26,16 @@ describe("Cloud browser build configuration", () => {
     expect(() => cloudPublicDefines({ ...publicSettings, VITE_SUPABASE_URL: "http://cloud.example.com" })).toThrow("HTTPS");
   });
 });
+describe("Cloud development build configuration", () => {
+  it("does not break development/preview builds when the platform injects settings later", () => {
+    expect(cloudPublicDefines({}, { strict: false })).toEqual({});
+  });
+  it("still rejects private keys in development builds", () => {
+    expect(() => cloudPublicDefines({ ...publicSettings, VITE_SUPABASE_PUBLISHABLE_KEY: "sb_secret_test" }, { strict: false })).toThrow("private credential");
+  });
+  it("allows a loopback HTTP address only in development builds", () => {
+    const local = { ...publicSettings, VITE_SUPABASE_URL: "http://127.0.0.1:54321" };
+    expect(cloudPublicDefines(local, { strict: false })["import.meta.env.VITE_SUPABASE_URL"]).toBe('"http://127.0.0.1:54321"');
+    expect(() => cloudPublicDefines(local)).toThrow("HTTPS");
+  });
+});
