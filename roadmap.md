@@ -1,12 +1,15 @@
 # MEMORA Phase 2
 ## Master MVP completion
-- [ ] Approve dispatch v3 SQL and coordinated ingestion rollout; live schema inspected, deployment and runtime tests remain pending approval.
-- [ ] Secure fenced dispatch, bounded trusted result ingestion and job lifecycle reconciliation.
-- [ ] Persist video/document results and private assets; add result views and bounded source-linked search.
-- [ ] Implement workspace-scoped exact and explainable near duplicates with evidence.
-- [ ] Implement retention approval, coordinated deletion and historical savings accounting.
-- [ ] Implement offboarding inventory selection and reviewed duplicate outcomes.
-- [ ] Run unit, integration and real-file acceptance checks; document deployment blockers.
+- [ ] Phase 1: prepare coordinated dispatch and verified ingestion SQL; implement disabled-by-default secure dispatcher and worker callbacks without applying unreviewed migrations.
+- [ ] Phase 2: return bounded real video manifests; persist transcripts, frames and processing metadata; add transcript/frame timeline and timestamp navigation.
+- [ ] Phase 3: return bounded PDF/PPTX manifests including empty/OCR-required pages and notes; add page/slide viewers.
+- [ ] Phase 4: ingest source-linked knowledge idempotently and implement bounded unified search.
+- [ ] Phase 5: add Ask MEMORA with evidence-only answers and citations when a secure AI provider is configured.
+- [ ] Phase 6: implement workspace-scoped exact and explainable near-duplicate detection with conservative evidence.
+- [ ] Phase 7: implement retention approval, coordinated deletion and historical verified savings accounting.
+- [ ] Phase 8: implement offboarding inventory selection using shared duplicate analysis.
+- [ ] Phase 9: connect actual dashboard metrics and final integration states.
+- [ ] Run unit, integration and available real-file acceptance checks; document deployment blockers and local commands.
 ## Python dispatch integration
 - [x] Add approval-gated readiness validation that fails closed without claiming or executing jobs; verify against the actual Approved Tech Concept Hack recording.
 - [ ] Connect atomic dispatch and protected ingestion — blocked: deployed processor URL/shared credential and private generated-assets write authorization are unavailable; repository video processing still reports Blocked.

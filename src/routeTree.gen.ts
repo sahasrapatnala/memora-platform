@@ -22,7 +22,10 @@ import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedStorageRouteImport } from './routes/_authenticated/storage'
 import { Route as AuthenticatedUploadRouteImport } from './routes/_authenticated/upload'
 import { Route as AuthenticatedVideosRouteImport } from './routes/_authenticated/videos'
+import { Route as AuthenticatedDocumentsIdRouteImport } from './routes/_authenticated/documents.$id'
 import { Route as AuthenticatedVideosIdRouteImport } from './routes/_authenticated/videos.$id'
+import { Route as ApiPublicProcessingRouteImport } from './routes/api/public/processing'
+import { Route as ApiPublicProcessingArtifactRouteImport } from './routes/api/public/processing-artifact'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -89,17 +92,34 @@ const AuthenticatedVideosRoute = AuthenticatedVideosRouteImport.update({
   path: '/videos',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedDocumentsIdRoute =
+  AuthenticatedDocumentsIdRouteImport.update({
+    id: '/$id',
+    path: '/$id',
+    getParentRoute: () => AuthenticatedDocumentsRoute,
+  } as any)
 const AuthenticatedVideosIdRoute = AuthenticatedVideosIdRouteImport.update({
   id: '/$id',
   path: '/$id',
   getParentRoute: () => AuthenticatedVideosRoute,
 } as any)
+const ApiPublicProcessingRoute = ApiPublicProcessingRouteImport.update({
+  id: '/api/public/processing',
+  path: '/api/public/processing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicProcessingArtifactRoute =
+  ApiPublicProcessingArtifactRouteImport.update({
+    id: '/api/public/processing-artifact',
+    path: '/api/public/processing-artifact',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
-  '/documents': typeof AuthenticatedDocumentsRoute
+  '/documents': typeof AuthenticatedDocumentsRouteWithChildren
   '/duplicates': typeof AuthenticatedDuplicatesRoute
   '/knowledge': typeof AuthenticatedKnowledgeRoute
   '/offboarding': typeof AuthenticatedOffboardingRoute
@@ -108,13 +128,16 @@ export interface FileRoutesByFullPath {
   '/storage': typeof AuthenticatedStorageRoute
   '/upload': typeof AuthenticatedUploadRoute
   '/videos': typeof AuthenticatedVideosRouteWithChildren
+  '/documents/$id': typeof AuthenticatedDocumentsIdRoute
   '/videos/$id': typeof AuthenticatedVideosIdRoute
+  '/api/public/processing': typeof ApiPublicProcessingRoute
+  '/api/public/processing-artifact': typeof ApiPublicProcessingArtifactRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
-  '/documents': typeof AuthenticatedDocumentsRoute
+  '/documents': typeof AuthenticatedDocumentsRouteWithChildren
   '/duplicates': typeof AuthenticatedDuplicatesRoute
   '/knowledge': typeof AuthenticatedKnowledgeRoute
   '/offboarding': typeof AuthenticatedOffboardingRoute
@@ -123,7 +146,10 @@ export interface FileRoutesByTo {
   '/storage': typeof AuthenticatedStorageRoute
   '/upload': typeof AuthenticatedUploadRoute
   '/videos': typeof AuthenticatedVideosRouteWithChildren
+  '/documents/$id': typeof AuthenticatedDocumentsIdRoute
   '/videos/$id': typeof AuthenticatedVideosIdRoute
+  '/api/public/processing': typeof ApiPublicProcessingRoute
+  '/api/public/processing-artifact': typeof ApiPublicProcessingArtifactRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -131,7 +157,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
-  '/_authenticated/documents': typeof AuthenticatedDocumentsRoute
+  '/_authenticated/documents': typeof AuthenticatedDocumentsRouteWithChildren
   '/_authenticated/duplicates': typeof AuthenticatedDuplicatesRoute
   '/_authenticated/knowledge': typeof AuthenticatedKnowledgeRoute
   '/_authenticated/offboarding': typeof AuthenticatedOffboardingRoute
@@ -140,7 +166,10 @@ export interface FileRoutesById {
   '/_authenticated/storage': typeof AuthenticatedStorageRoute
   '/_authenticated/upload': typeof AuthenticatedUploadRoute
   '/_authenticated/videos': typeof AuthenticatedVideosRouteWithChildren
+  '/_authenticated/documents/$id': typeof AuthenticatedDocumentsIdRoute
   '/_authenticated/videos/$id': typeof AuthenticatedVideosIdRoute
+  '/api/public/processing': typeof ApiPublicProcessingRoute
+  '/api/public/processing-artifact': typeof ApiPublicProcessingArtifactRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -157,7 +186,10 @@ export interface FileRouteTypes {
     | '/storage'
     | '/upload'
     | '/videos'
+    | '/documents/$id'
     | '/videos/$id'
+    | '/api/public/processing'
+    | '/api/public/processing-artifact'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -172,7 +204,10 @@ export interface FileRouteTypes {
     | '/storage'
     | '/upload'
     | '/videos'
+    | '/documents/$id'
     | '/videos/$id'
+    | '/api/public/processing'
+    | '/api/public/processing-artifact'
   id:
     | '__root__'
     | '/'
@@ -188,7 +223,10 @@ export interface FileRouteTypes {
     | '/_authenticated/storage'
     | '/_authenticated/upload'
     | '/_authenticated/videos'
+    | '/_authenticated/documents/$id'
     | '/_authenticated/videos/$id'
+    | '/api/public/processing'
+    | '/api/public/processing-artifact'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -196,6 +234,8 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  ApiPublicProcessingRoute: typeof ApiPublicProcessingRoute
+  ApiPublicProcessingArtifactRoute: typeof ApiPublicProcessingArtifactRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -291,6 +331,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedVideosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/documents/$id': {
+      id: '/_authenticated/documents/$id'
+      path: '/$id'
+      fullPath: '/documents/$id'
+      preLoaderRoute: typeof AuthenticatedDocumentsIdRouteImport
+      parentRoute: typeof AuthenticatedDocumentsRoute
+    }
     '/_authenticated/videos/$id': {
       id: '/_authenticated/videos/$id'
       path: '/$id'
@@ -298,8 +345,36 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedVideosIdRouteImport
       parentRoute: typeof AuthenticatedVideosRoute
     }
+    '/api/public/processing': {
+      id: '/api/public/processing'
+      path: '/api/public/processing'
+      fullPath: '/api/public/processing'
+      preLoaderRoute: typeof ApiPublicProcessingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/processing-artifact': {
+      id: '/api/public/processing-artifact'
+      path: '/api/public/processing-artifact'
+      fullPath: '/api/public/processing-artifact'
+      preLoaderRoute: typeof ApiPublicProcessingArtifactRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
+
+interface AuthenticatedDocumentsRouteChildren {
+  AuthenticatedDocumentsIdRoute: typeof AuthenticatedDocumentsIdRoute
+}
+
+const AuthenticatedDocumentsRouteChildren: AuthenticatedDocumentsRouteChildren =
+  {
+    AuthenticatedDocumentsIdRoute: AuthenticatedDocumentsIdRoute,
+  }
+
+const AuthenticatedDocumentsRouteWithChildren =
+  AuthenticatedDocumentsRoute._addFileChildren(
+    AuthenticatedDocumentsRouteChildren,
+  )
 
 interface AuthenticatedVideosRouteChildren {
   AuthenticatedVideosIdRoute: typeof AuthenticatedVideosIdRoute
@@ -313,7 +388,7 @@ const AuthenticatedVideosRouteWithChildren =
   AuthenticatedVideosRoute._addFileChildren(AuthenticatedVideosRouteChildren)
 
 interface AuthenticatedRouteRouteChildren {
-  AuthenticatedDocumentsRoute: typeof AuthenticatedDocumentsRoute
+  AuthenticatedDocumentsRoute: typeof AuthenticatedDocumentsRouteWithChildren
   AuthenticatedDuplicatesRoute: typeof AuthenticatedDuplicatesRoute
   AuthenticatedKnowledgeRoute: typeof AuthenticatedKnowledgeRoute
   AuthenticatedOffboardingRoute: typeof AuthenticatedOffboardingRoute
@@ -325,7 +400,7 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
-  AuthenticatedDocumentsRoute: AuthenticatedDocumentsRoute,
+  AuthenticatedDocumentsRoute: AuthenticatedDocumentsRouteWithChildren,
   AuthenticatedDuplicatesRoute: AuthenticatedDuplicatesRoute,
   AuthenticatedKnowledgeRoute: AuthenticatedKnowledgeRoute,
   AuthenticatedOffboardingRoute: AuthenticatedOffboardingRoute,
@@ -344,6 +419,8 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  ApiPublicProcessingRoute: ApiPublicProcessingRoute,
+  ApiPublicProcessingArtifactRoute: ApiPublicProcessingArtifactRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

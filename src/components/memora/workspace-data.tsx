@@ -56,6 +56,11 @@ function useWorkspaceState() {
         videos,
         transcripts,
         speakers,
+        documents,
+        pages,
+        slides,
+        frames,
+        matches,
       ] = await Promise.all([
         supabase
           .from("files")
@@ -87,6 +92,11 @@ function useWorkspaceState() {
           .eq("workspace_id", workspace.id)
           .order("start_seconds"),
         supabase.from("video_speakers").select().eq("workspace_id", workspace.id),
+        supabase.from("documents").select().eq("workspace_id", workspace.id),
+        supabase.from("document_pages").select().eq("workspace_id", workspace.id).order("page_number").limit(5000),
+        supabase.from("document_slides").select().eq("workspace_id", workspace.id).order("slide_number").limit(2000),
+        supabase.from("video_frames").select().eq("workspace_id", workspace.id).order("timestamp_seconds").limit(5000),
+        supabase.from("duplicate_matches").select().eq("workspace_id", workspace.id).limit(1000),
       ]);
       for (const r of [
         files,
@@ -102,6 +112,11 @@ function useWorkspaceState() {
         videos,
         transcripts,
         speakers,
+        documents,
+        pages,
+        slides,
+        frames,
+        matches,
       ])
         if (r.error) throw r.error;
       return {
@@ -118,6 +133,11 @@ function useWorkspaceState() {
         videos: videos.data ?? [],
         transcripts: transcripts.data ?? [],
         speakers: speakers.data ?? [],
+        documents: documents.data ?? [],
+        pages: pages.data ?? [],
+        slides: slides.data ?? [],
+        frames: frames.data ?? [],
+        matches: matches.data ?? [],
       };
     },
   });

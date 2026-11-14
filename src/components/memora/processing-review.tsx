@@ -12,6 +12,7 @@ import {
   dispatchProcessing,
 } from "@/lib/memora/api.functions";
 import { canReviewProcessing } from "@/lib/memora/processing-review";
+import { cancelProcessing } from "@/lib/memora/processing-cancel.functions";
 import { useWorkspace } from "./workspace-data";
 import { SectionTitle, Status } from "./shell";
 
@@ -20,6 +21,7 @@ export function ProcessingReview() {
 
   const decide = useServerFn(decideProcessing);
   const dispatch = useServerFn(dispatchProcessing);
+  const cancel = useServerFn(cancelProcessing);
 
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
@@ -85,7 +87,7 @@ export function ProcessingReview() {
     }
   }
 
-  async function processVideo(jobId: string) {
+  async function processOriginal(jobId: string) {
     if (!workspace || busy) return;
 
     setBusy(jobId);
@@ -100,14 +102,12 @@ export function ProcessingReview() {
 
       await refresh();
 
-      toast.success(
-        `Video processed: ${result.transcriptSegments} transcript segments and ${result.keyframeCount} keyframes.`,
-      );
+      toast.success(`Processing attempt ${result.attempt} accepted. Progress will update from verified worker events.`);
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
-          : "Video processing failed",
+          : "Processing could not be started",
       );
     } finally {
       setBusy(null);
@@ -181,13 +181,21 @@ export function ProcessingReview() {
                 </div>
               )}
 
+              {allowed && ["Approved", "Processing"].includes(job.status) && <Button variant="outline" disabled={!!busy} onClick={async () => {
+                if (!workspace || busy) return;
+                setBusy(job.id);
+                try { await cancel({ data: { jobId: job.id, workspaceId: workspace.id } }); await refresh(); toast.success("Processing cancelled. Later worker callbacks will be rejected."); }
+                catch (error) { toast.error(error instanceof Error ? error.message : "Cancellation failed"); }
+                finally { setBusy(null); }
+              }}><X />Cancel</Button>}
+
               {allowed && job.status === "Approved" && (
                 <Button
                   disabled={!!busy}
-                  onClick={() => void processVideo(job.id)}
+                  onClick={() => void processOriginal(job.id)}
                 >
                   <Play />
-                  {busy === job.id ? "Processing..." : "Process Video"}
+                  {busy === job.id ? "Starting..." : "Start processing"}
                 </Button>
               )}
             </div>

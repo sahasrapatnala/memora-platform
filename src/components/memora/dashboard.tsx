@@ -14,20 +14,19 @@ export function Dashboard() {
     data?.analytics ?? [],
     retentionApprovalIds(data?.approvals ?? []),
   );
-  const processed = new Set(
-    data?.jobs.filter((j) => j.status === "Completed").map((j) => j.file_id),
-  ).size;
+  const completedIds = new Set(data?.jobs.filter((job) => job.status === "Completed").map((job) => job.file_id));
+  const completedFiles = files.filter((file) => completedIds.has(file.id));
   const metrics = [
-    ["Total original storage", formatBytes(storage.original), "Original file bytes"],
+    ["Total original storage", formatBytes(storage.original), "Active original file bytes"],
     ["Uploaded files", String(files.length), "Registered originals"],
-    ["Processed files", String(processed), "Completed processing jobs"],
-    ["Potential storage savings", formatBytes(storage.potential), "Verified package measurements"],
+    ["Processed videos", String(completedFiles.filter((file) => ["MP4", "MOV"].includes(file.format)).length), "Completed and ingested"],
+    ["Processed documents", String(completedFiles.filter((file) => ["PDF", "PPTX", "DOCX"].includes(file.format)).length), "Completed and ingested"],
+    ["Transcript segments", String(data?.transcripts.length ?? 0), "Persisted timestamped records"],
+    ["Pages and slides", String((data?.pages.length ?? 0) + (data?.slides.length ?? 0)), "Persisted document results"],
+    ["Duplicate groups", String(data?.groups.length ?? 0), "Exact and near-duplicate candidates"],
+    ["Pending recommendations", String(data?.recommendations.filter((item) => item.status === "Awaiting Review").length ?? 0), "Require human review"],
     ["Verified storage reclaimed", formatBytes(storage.reclaimed), "Authorized, verified actions"],
-    [
-      "Duplicate candidates",
-      String(data?.groups.filter((g) => g.status === "Awaiting Review").length ?? 0),
-      "Groups awaiting review",
-    ],
+    ["Processing failures", String(data?.jobs.filter((job) => job.status === "Failed").length ?? 0), "Terminal failed jobs"],
   ];
   return (
     <Shell title="Overview">
@@ -101,8 +100,7 @@ export function Dashboard() {
         <div>
           <strong>Originals preserved. Every result traceable.</strong>
           <p>
-            Processing is not connected. Storage charts appear only when measured knowledge packages
-            are available.
+            Only completed, durably ingested jobs count as processed. Storage charts use measured package bytes and verified retention receipts.
           </p>
         </div>
         <Button variant="link" asChild>

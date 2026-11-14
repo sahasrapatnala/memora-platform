@@ -1,34 +1,47 @@
-# memora
+# MEMORA
 
-Implement exactly the screenshot and nothing else
+**Preserve Knowledge. Eliminate Redundancy.**
 
-This project was built with [Lovable](https://lovable.dev).
+MEMORA is an intelligent data storage optimization platform for private video and document originals, reviewer-approved extraction, source-linked knowledge search, duplicate evidence, retention review and offboarding inventories. No fabricated metrics or processing results are used.
 
-## Build with Lovable
+## Local application — PowerShell
 
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/d5ac1397-48e2-46f9-9c3a-3155cf81dc50).
+Install Bun, Python, FFmpeg and the processing model dependencies first. Clone the existing repository; do not create another Cloud project.
 
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
-
-## Development
-
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
-
-```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
-npm run dev
+```powershell
+git clone <existing-repository-url>
+cd <existing-project-directory>
+bun install
+bun run dev
 ```
 
-## Local account access
+The downloaded project's existing `.env` supplies the Cloud connection. Browser variables are `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` and `VITE_SUPABASE_PROJECT_ID`. Server functions additionally require `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_PROJECT_ID` and the server-only managed service credential supplied by Lovable Cloud. Never place private keys in `VITE_` variables or commit them.
 
-Use the downloaded project's existing `.env` values; do not create another Cloud project or edit generated integration files. Browser sign-in needs `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`; keep `VITE_SUPABASE_PROJECT_ID` from the export. Server functions also use `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, and `SUPABASE_PROJECT_ID`. Never add private keys with a `VITE_` prefix.
+Optional processing configuration names:
 
-Email/password requests use the same Lovable Cloud account service locally and hosted. An account created with Google does not necessarily have a password. Use **Forgot password** with that account's email to set one yourself; do not register a replacement account. The audit found both existing accounts had no password set. No account password was changed by this fix.
+- `PROCESSING_API_URL`
+- `PROCESSING_API_KEY`
+- `PROCESSING_CALLBACK_URL`
+- `PROCESSING_CALLBACK_ORIGIN`
+- `MEMORA_PROCESSING_ENABLED`
+- `MEMORA_RETENTION_ENABLED`
 
-Google and Lovable sign-in use a hosted broker at `/~oauth/initiate`, which Vite does not serve. Their buttons are disabled on loopback hosts; the hosted helper remains unchanged. Do not replace it with raw provider OAuth or proxy tokens through another origin.
+Both feature gates default to disabled. The reviewed SQL under `docs/sql-review/` must be applied in the order documented in `docs/sql-review/mvp-rollout.md` and pass acceptance checks before either gate is enabled. No migration from that review directory was applied by the implementation pass.
 
-For recovery links to return to local development, open the app at `http://127.0.0.1:<port>` and add `http://127.0.0.1:<port>/**` under **More → Users → Auth settings → Advanced → Redirect URLs**. The audited allow-list has hosted URLs only. Without that addition, recovery links fall back to hosted MEMORA; you can set the password there and then sign in locally. Do not change the hosted Site URL. Sessions use localStorage outside the hosted preview and survive refresh.
+For local processing, use `PROCESSING_API_URL=http://127.0.0.1:8000` and `PROCESSING_CALLBACK_URL=http://127.0.0.1:8080/api/public/processing`. Remote endpoints require HTTPS. See `processing-service/README.md` for worker setup and its environment names.
+
+## Accounts and recovery
+
+Email/password uses the same Lovable Cloud accounts locally and hosted. A Google-created account does not necessarily have a password; use **Forgot password** to set one yourself. Google and Lovable sign-in use the hosted broker and are disabled on loopback hosts.
+
+For local recovery links, open `http://127.0.0.1:<port>` and add `http://127.0.0.1:<port>/**` under **More → Users → Auth settings → Advanced → Redirect URLs**. Keep hosted entries and the Site URL unchanged. Sessions survive refresh.
+
+## Tests
+
+```powershell
+bunx vitest run
+cd processing-service
+python -m unittest test_cloud_download.py test_service.py test_rules.py test_documents.py test_callbacks.py
+```
+
+Unit tests do not prove live dispatch, model extraction, cross-workspace isolation or durable persistence. Real-file and two-account acceptance steps are listed in the rollout document.

@@ -1,170 +1,89 @@
-
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { dispatchCandidate } from "./processing-review";
-import { validateFile } from "./data";
+import { validProcessingEndpoint } from "./processing-endpoints";
 
-export async function dispatchApprovedVideo(
+export async function dispatchApprovedOriginal(
   client: SupabaseClient<Database>,
-  input: {
-    jobId: string;
-    workspaceId: string;
-    userId: string;
-  },
+  input: { jobId: string; workspaceId: string; userId: string },
 ) {
   const { jobId, workspaceId, userId } = input;
-
-  // 1. Verify reviewer permissions.
-  const membershipResult = await client
-    .from("workspace_members")
-    .select("role")
-    .eq("workspace_id", workspaceId)
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (
-    membershipResult.error ||
-    !membershipResult.data ||
-    !["owner", "reviewer"].includes(membershipResult.data.role)
-  ) {
-    throw new Error("Reviewer access required");
+  if (process.env["MEMORA_PROCESSING_ENABLED"] !== "true") {
+    throw new Error("Processing is disabled until the reviewed dispatch and ingestion migration is applied and verified");
   }
-
-  // 2. Load the processing job.
-  const jobResult = await client
-    .from("processing_jobs")
-    .select("*")
-    .eq("id", jobId)
-    .eq("workspace_id", workspaceId)
-    .maybeSingle();
-
-  if (jobResult.error || !jobResult.data) {
-    throw new Error("Processing job not found");
-  }
-
-  const job = jobResult.data;
-
-  // 3. Verify the matching approval.
-  const decisionResult = await client
-    .from("approval_requests")
-    .select("*")
-    .eq("processing_job_id", jobId)
-    .maybeSingle();
-
-  if (decisionResult.error || !decisionResult.data) {
-    throw new Error("Processing approval not found");
-  }
-
-  dispatchCandidate(job, decisionResult.data);
-
-  // 4. Verify the uploaded original.
-  const fileResult = await client
-    .from("files")
-    .select("*")
-    .eq("id", job.file_id)
-    .eq("workspace_id", workspaceId)
-    .maybeSingle();
-
-  if (fileResult.error || !fileResult.data) {
-    throw new Error("Original file not found");
-  }
-
-  const file = fileResult.data;
-
-  if (
-    file.user_id !== job.user_id ||
-    file.workspace_id !== job.workspace_id ||
-    file.status !== "Uploaded"
-  ) {
-    throw new Error("Original is no longer eligible");
-  }
-
-  if (
-    !file.sha256 ||
-    !/^[0-9a-f]{64}$/.test(file.sha256) ||
-    !["MP4", "MOV"].includes(file.format) ||
-    !Number.isSafeInteger(file.size_bytes) ||
-    file.size_bytes <= 0 ||
-    file.size_bytes > 5368709120
-  ) {
-    throw new Error("Verified video original required");
-  }
-
-  const validation = validateFile(file.name, file.size_bytes);
-  if (validation) throw new Error(validation);
-
-  // 5. Verify original owner's workspace membership.
-  const ownerMembership = await client
-    .from("workspace_members")
-    .select("id")
-    .eq("workspace_id", workspaceId)
-    .eq("user_id", job.user_id)
-    .maybeSingle();
-
-  if (ownerMembership.error || !ownerMembership.data) {
-    throw new Error("Original owner workspace access required");
-  }
-
-  // 6. Create a short-lived signed URL using the authenticated client.
-  const signedResult = await client.storage
-    .from("original-files")
-    .createSignedUrl(file.storage_path, 900);
-
-  if (signedResult.error || !signedResult.data) {
-    throw new Error("Could not authorize original retrieval");
-  }
-
-  // 7. Read server-only processor configuration.
   const processorUrl = process.env["PROCESSING_API_URL"];
   const processorKey = process.env["PROCESSING_API_KEY"];
-
-  if (!processorUrl || !processorKey) {
-    throw new Error("Processing service configuration missing");
+  const callbackUrl = process.env["PROCESSING_CALLBACK_URL"];
+  if (!processorUrl || !processorKey || !callbackUrl) throw new Error("Processing service configuration missing");
+  if (!validProcessingEndpoint(processorUrl) || !validProcessingEndpoint(callbackUrl)) {
+    throw new Error("Processing endpoints must use HTTPS, except on loopback development hosts");
   }
 
-  // 8. Call the Python processor.
-  const response = await fetch(new URL("/process", processorUrl), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${processorKey}`,
-    },
-    body: JSON.stringify({
-      file_id: file.id,
-      workspace_id: workspaceId,
-      name: file.name,
-      source_url: signedResult.data.signedUrl,
-      size_bytes: file.size_bytes,
-      sha256: file.sha256,
-    }),
-    signal: AbortSignal.timeout(600000),
+  const membership = await client.from("workspace_members").select("role").eq("workspace_id", workspaceId).eq("user_id", userId).maybeSingle();
+  if (membership.error || !membership.data || !["owner", "reviewer"].includes(membership.data.role)) throw new Error("Reviewer access required");
+  const jobResult = await client.from("processing_jobs").select().eq("id", jobId).eq("workspace_id", workspaceId).maybeSingle();
+  if (jobResult.error || !jobResult.data) throw new Error("Processing job not found");
+  const decision = await client.from("approval_requests").select().eq("processing_job_id", jobId).maybeSingle();
+  if (decision.error || !decision.data) throw new Error("Processing approval not found");
+  dispatchCandidate(jobResult.data, decision.data);
+  const fileResult = await client.from("files").select().eq("id", jobResult.data.file_id).eq("workspace_id", workspaceId).maybeSingle();
+  if (fileResult.error || !fileResult.data || fileResult.data.status !== "Uploaded") throw new Error("Uploaded original required");
+
+  const workerId = `app-${crypto.randomUUID()}`;
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  // Removed after type regeneration: future trusted RPCs never become browser APIs.
+  const trusted = supabaseAdmin as unknown as SupabaseClient;
+  const claim = await trusted.rpc("claim_approved_processing_job", {
+    p_job: jobId,
+    p_workspace: workspaceId,
+    p_actor: userId,
+    p_worker_id: workerId,
+    p_lease_seconds: 300,
   });
-
-  if (!response.ok) {
-    throw new Error(`Processing service returned HTTP ${response.status}`);
+  if (claim.error) throw new Error("The processing job could not be claimed");
+  const claimed = claim.data?.[0] as {
+    outcome?: string; dispatch_token?: string; file_storage_path?: string;
+    file_name?: string; file_size_bytes?: number; file_sha256?: string; file_format?: string;
+    dispatch_attempts?: number; lease_expires_at?: string;
+  } | undefined;
+  if (!claimed || claimed.outcome === "AttemptsExhausted") throw new Error("This job has reached its three-attempt limit");
+  if (claimed.outcome !== "Claimed" || !claimed.dispatch_token || !claimed.file_storage_path || !claimed.file_sha256 || !claimed.file_name || !claimed.file_size_bytes) {
+    throw new Error("The selected job is not currently eligible for dispatch");
   }
 
-  const responseText = await response.text();
-
-  const events = responseText
-    .split(/\r?\n/)
-    .filter((line) => line.trim())
-    .map((line) => JSON.parse(line));
-
-  const result = events.at(-1);
-
-  if (!result || result.status !== "ProcessedLocally") {
-    throw new Error("Video processing did not complete successfully");
+  const source = await client.storage.from("original-files").createSignedUrl(claimed.file_storage_path, 900);
+  if (source.error || !source.data) throw new Error("Could not authorize original retrieval");
+  const endpoint = new URL("/process", processorUrl);
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${processorKey}` },
+    body: JSON.stringify({
+      file_id: jobResult.data.file_id,
+      workspace_id: workspaceId,
+      job_id: jobId,
+      dispatch_token: claimed.dispatch_token,
+      worker_id: workerId,
+      callback_url: callbackUrl,
+      name: claimed.file_name,
+      source_url: source.data.signedUrl,
+      size_bytes: claimed.file_size_bytes,
+      sha256: claimed.file_sha256,
+    }),
+    signal: AbortSignal.timeout(15000),
+  });
+  if (response.status !== 202) {
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    await (admin as unknown as SupabaseClient).rpc("fail_processing_attempt", {
+      p_job: jobId, p_workspace: workspaceId, p_token: claimed.dispatch_token,
+      p_worker_id: workerId, p_error_code: "DeliveryUncertain",
+    });
+    throw new Error("The processing service did not accept the job");
   }
-
   return {
     jobId,
-    status: "ProcessedLocally" as const,
-    stage: result.stage,
-    language: result.language,
-    transcriptSegments: result.transcript_segments,
-    durationSeconds: result.duration_seconds,
-    keyframeCount: result.keyframe_count,
-    persisted: false as const,
+    status: "Processing" as const,
+    stage: "Dispatch claimed",
+    attempt: claimed.dispatch_attempts ?? 1,
+    leaseExpiresAt: claimed.lease_expires_at ?? null,
   };
 }

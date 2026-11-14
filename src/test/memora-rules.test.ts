@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { storageSavings, validateFile } from "@/lib/memora/data";
-import { measuredStorage, retentionApprovalIds } from "@/lib/memora/integrity";
+import { measuredStorage, retentionApprovalIds, recommendationSavings } from "@/lib/memora/integrity";
 describe("MEMORA accuracy rules", () => {
   it("never treats processing approval as retention authorization", () => {
     expect(retentionApprovalIds([
@@ -75,4 +75,12 @@ describe("MEMORA accuracy rules", () => {
         ],
       ).potential,
     ).toBe(700));
+  it("retains verified reclaimed history after the original leaves active files", () =>
+    expect(measuredStorage([], [{ ...measurement, retention_verified_at: "2026-11-14", approval_id: "approval" }], ["approval"]).reclaimed).toBe(800));
+  it("deduplicates pending recommendation savings by original file", () =>
+    expect(recommendationSavings([
+      { file_id: "a", status: "Awaiting Review", potential_savings_bytes: 100 },
+      { file_id: "a", status: "Awaiting Review", potential_savings_bytes: 100 },
+      { file_id: "b", status: "Approved", potential_savings_bytes: 900 },
+    ])).toBe(100));
 });

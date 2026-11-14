@@ -1,4 +1,3 @@
-import { dispatchApprovedVideo } from "./processing-dispatch.server";
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
@@ -48,7 +47,8 @@ export const decideProcessing = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     setResponseHeader("Cache-Control", "no-store");
 
-    return dispatchApprovedVideo(context.supabase, {
+    const { dispatchApprovedOriginal } = await import("./processing-dispatch.server");
+    return dispatchApprovedOriginal(context.supabase, {
       jobId: data.jobId,
       workspaceId: data.workspaceId,
       userId: context.userId,

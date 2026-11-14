@@ -18,10 +18,10 @@ export function validateDispatchReadiness(input: {
     status: "Blocked" as const,
     dispatched: false as const,
     blockers: [
-      "Deployed processor and shared authentication are not configured",
-      "Atomic dispatch and protected result ingestion are not installed",
-      "Private generated-asset writes are not authorized",
-      "Repository processor does not implement video analysis",
+      "Reviewed dispatch and ingestion migrations have not been applied",
+      "Processor deployment and shared authentication are unverified",
+      "Worker delivery, private artifact callbacks and finalization are untested",
+      "Real-file end-to-end persistence has not passed",
     ],
   };
 }

@@ -29,6 +29,9 @@ export function measuredStorage(
       generated += row.generated_size_bytes;
       potential += Math.max(0, file.size_bytes - row.generated_size_bytes);
     }
+  }
+  // Reclaimed history must survive the original leaving the active file inventory.
+  for (const row of measurements) {
     if (row.retention_verified_at && row.approval_id && approvedIds.includes(row.approval_id))
       reclaimed += row.reclaimed_size_bytes;
   }
@@ -39,6 +42,17 @@ export function measuredStorage(
     reclaimed,
   };
 }
+export function recommendationSavings(recommendations: { file_id: string; status: string; potential_savings_bytes?: number | null }[], status = "Awaiting Review") {
+  const files = new Set<string>();
+  let total = 0;
+  for (const recommendation of recommendations) {
+    if (recommendation.status !== status || files.has(recommendation.file_id)) continue;
+    files.add(recommendation.file_id);
+    total += Math.max(0, recommendation.potential_savings_bytes ?? 0);
+  }
+  return total;
+}
+
 export function formatBytes(bytes: number) {
   if (bytes === 0) return "0 B";
   const units = ["B", "KB", "MB", "GB", "TB"];

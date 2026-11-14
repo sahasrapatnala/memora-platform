@@ -29,17 +29,17 @@ result = process_video(video, output)
 
 summary = {
     "language": result["transcript"]["language"],
-    "segments": len(result["transcript"]["segments"]),
-    "frames": len(result["keyframes"]["frames"]),
-    "duration": result["keyframes"]["duration_seconds"],
+    "segments": len(result["transcript_segments"]),
+    "frames": len(result["frames"]),
+    "duration": result["duration_seconds"],
 }
 
 print(json.dumps(summary, indent=2))
 
-for segment in result["transcript"]["segments"][:10]:
+for segment in result["transcript_segments"][:10]:
     print(
-        f"[{segment['start']}s - {segment['end']}s] "
-        f"{segment['text']}"
+        f"[{segment['start_seconds']}s - {segment['end_seconds']}s] "
+        f"{segment['content']}"
     )
 
 Path("test-output/results.json").write_text(
