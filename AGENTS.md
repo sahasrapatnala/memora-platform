@@ -46,3 +46,7 @@ use the editor.
 - Processing dispatch and retention deletion are disabled by default until their reviewed migrations and acceptance checks complete; selected-job claims use fresh fencing tokens, worker callbacks are attempt-bound, and only verified durable manifests may complete jobs.
 - Worker admission reserves capacity before HTTP 202 and a continuous attempt-scoped heartbeat renews fenced leases during silent extraction; stopped/rejected renewals prevent further delivery, because model initialization does not reliably emit progress events.
 - Source summaries select bounded distributed excerpts without question-keyword filtering; ordinary answers still require matching evidence, because summary instructions are not source content.
+
+- Finalization uses a last conditional unexpired-token update in the result transaction, and artifact receipts include token/workspace/file lineage, because leases can expire during insertion.
+- Source readers retain one explicit page with deterministic ordering and zero inactive-page cache; latest results use created_at then id, because default row limits and unordered history hide content.
+- Generated summaries live separately with evidence IDs/citations and a content-sensitive request key, because refresh must preserve generated knowledge without contaminating extracted source content.

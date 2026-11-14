@@ -3,6 +3,8 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { setResponseHeader } from "@tanstack/react-start/server";
 import { streamResponse, GatewayError } from "@lovable.dev/ai-gateway";
 import { z } from "zod";
+import { pageOffset, RECORD_PAGE_SIZE } from "./pagination";
+import { SUMMARY_MODEL, summaryRequestKey, validAnswerCitations, type SavedSummary } from "./source-summaries";
 import { escapeIlike, queryTerms, selectAnswerEvidence } from "./knowledge-search";
 import { sourceCitation } from "./knowledge-source";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -13,6 +15,7 @@ const searchInput = z.object({
   query: z.string().trim().max(200),
   fileId: z.string().uuid().optional(),
   format: z.enum(["MP4", "MOV", "PDF", "PPTX", "DOCX"]).optional(),
+  page: z.number().int().min(0).default(0),
 }).strict();
 
 async function requireMembership(client: SupabaseClient<Database>, workspaceId: string, userId: string) {
@@ -26,51 +29,52 @@ export const searchKnowledge = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     setResponseHeader("Cache-Control", "no-store");
     await requireMembership(context.supabase, data.workspaceId, context.userId);
-    let fileIds: string[] | null = null;
-    if (data.format) {
-      const files = await context.supabase.from("files").select("id").eq("workspace_id", data.workspaceId).eq("format", data.format).limit(1000);
-      if (files.error) throw new Error("Source files could not be filtered");
-      fileIds = files.data.map((file) => file.id);
-      if (!fileIds.length) return [];
-    }
-    let query = context.supabase.from("knowledge_chunks").select().eq("workspace_id", data.workspaceId)
-      .order("created_at", { ascending: false }).limit(100);
+    const from = pageOffset(data.page);
+    // Join/filter the source rather than loading an incomplete 1000-file IN list.
+    const select: string = "*,files!inner(id,name,format)";
+    let query = context.supabase.from("knowledge_chunks").select(select).eq("workspace_id", data.workspaceId)
+      .order("created_at", { ascending: false }).order("id", { ascending: false }).range(from, from + RECORD_PAGE_SIZE);
     if (data.query) query = query.ilike("content", `%${escapeIlike(data.query)}%`);
     if (data.fileId) query = query.eq("file_id", data.fileId);
-    if (fileIds) query = query.in("file_id", fileIds);
-    const result = await query;
+    if (data.format) query = query.eq("files.format", data.format);
+    type Chunk = Database["public"]["Tables"]["knowledge_chunks"]["Row"] & { files: { id: string; name: string; format: string } };
+    const result = await query.returns<Chunk[]>();
     if (result.error) throw new Error("Knowledge search failed");
-    const ids = Array.from(new Set(result.data.map((row) => row.file_id)));
-    const files = ids.length ? await context.supabase.from("files").select("id,name,format").in("id", ids) : { data: [], error: null };
-    if (files.error) throw new Error("Search sources could not be loaded");
-    return result.data.map((row) => ({
-      ...row,
-      citation: sourceCitation(row, files.data.find((file) => file.id === row.file_id)?.name ?? "Original source"),
-    }));
+    return { rows: result.data.slice(0, RECORD_PAGE_SIZE).map((row) => ({ ...row, citation: sourceCitation(row, row.files.name) })), hasNext: result.data.length > RECORD_PAGE_SIZE };
+
   });
 
 export const askMemora = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ workspaceId: z.string().uuid(), question: z.string().trim().min(3).max(1000), fileId: z.string().uuid().optional(), mode: z.enum(["answer", "summary"]).default("answer") }).strict().refine((input) => input.mode !== "summary" || !!input.fileId, "A source is required for a summary"))
+  .inputValidator(z.object({ workspaceId: z.string().uuid(), question: z.string().trim().min(3).max(1000), fileId: z.string().uuid().optional(), evidencePage: z.number().int().min(0).default(0), mode: z.enum(["answer", "summary"]).default("answer") }).strict().refine((input) => input.mode !== "summary" || !!input.fileId, "A source is required for a summary"))
   .handler(async ({ data, context }) => {
     setResponseHeader("Cache-Control", "no-store");
     await requireMembership(context.supabase, data.workspaceId, context.userId);
-    let chunkQuery = context.supabase.from("knowledge_chunks").select().eq("workspace_id", data.workspaceId).order("created_at", { ascending: false }).limit(500);
+    const from = pageOffset(data.evidencePage);
+    const select: string = "*,files!inner(id,name)";
+    let chunkQuery = context.supabase.from("knowledge_chunks").select(select).eq("workspace_id", data.workspaceId)
+      .order("created_at").order("id").range(from, from + RECORD_PAGE_SIZE);
     if (data.fileId) chunkQuery = chunkQuery.eq("file_id", data.fileId);
     const terms = data.mode === "summary" ? [] : queryTerms(data.question);
     if (terms.length) chunkQuery = chunkQuery.or(terms.map((term) => `content.ilike.%${escapeIlike(term)}%`).join(","));
-    const [chunks, files] = await Promise.all([
-      chunkQuery,
-      context.supabase.from("files").select("id,name").eq("workspace_id", data.workspaceId).limit(1000),
-    ]);
-    if (chunks.error || files.error) throw new Error("Workspace evidence could not be retrieved");
-    const evidence = selectAnswerEvidence(chunks.data, data.question, data.mode);
-    const citations = evidence.map((row) => sourceCitation(row, files.data.find((file) => file.id === row.file_id)?.name ?? "Original source"));
-    if (!evidence.length) return { answer: "There is insufficient extracted evidence in this workspace to answer that question.", citations, generated: false };
+    type EvidenceChunk = Database["public"]["Tables"]["knowledge_chunks"]["Row"] & { files: { name: string } };
+    const chunks = await chunkQuery.returns<EvidenceChunk[]>();
+    if (chunks.error) throw new Error("Workspace evidence could not be retrieved");
+    const hasMoreEvidence = chunks.data.length > RECORD_PAGE_SIZE;
+    const evidence = selectAnswerEvidence(chunks.data.slice(0, RECORD_PAGE_SIZE), data.question, data.mode);
+    const citations = evidence.map((row) => sourceCitation(row, row.files.name));
+    const requestKey = data.mode === "summary" && data.fileId ? await summaryRequestKey(data.workspaceId, data.fileId, data.question, evidence) : null;
+    const summaries = context.supabase as unknown as SupabaseClient;
+    if (!evidence.length) return { answer: "There is insufficient extracted evidence in this workspace to answer that question.", citations, generated: false, hasMoreEvidence };
+    if (requestKey && data.fileId) {
+      const saved = await summaries.from("source_summaries").select().eq("workspace_id", data.workspaceId).eq("file_id", data.fileId).eq("request_key", requestKey).maybeSingle();
+      if (saved.error) throw new Error("Saved summaries are unavailable until their reviewed migration is installed");
+      if (saved.data) { const row = saved.data as SavedSummary; return { answer: row.answer, citations: row.citations, generated: true, saved: true, hasMoreEvidence }; }
+    }
     const evidenceText = evidence.map((row, index) => `[${index + 1}] ${citations[index]?.label ?? "Source evidence"}\n${row.content.slice(0, 5000)}`).join("\n\n");
     try {
       const response = await streamResponse({
-        model: "openai/gpt-6-astra",
+        model: SUMMARY_MODEL,
         // This existing SDK forbids `store`; the stateless Gateway forces it false.
         reasoning: { effort: "low", summary: "auto" },
         include: ["reasoning.encrypted_content"],
@@ -87,9 +91,30 @@ export const askMemora = createServerFn({ method: "POST" })
         if (event.type === "response.incomplete") throw new Error("The answer was incomplete; no partial answer was substituted.");
       }
       if (!answer.trim()) throw new Error("Empty answer");
-      return { answer, citations, generated: true };
+      if (!validAnswerCitations(answer, citations)) throw new Error("The generated answer contains missing or invalid evidence citations; nothing was saved.");
+      if (requestKey && data.fileId) {
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const trusted = supabaseAdmin as unknown as SupabaseClient;
+        const saved = await trusted.rpc("save_source_summary", { p_actor: context.userId, p_workspace: data.workspaceId, p_file: data.fileId, p_answer: answer, p_evidence: evidence.map((row) => row.id), p_citations: citations, p_model: SUMMARY_MODEL,
+          p_metadata: { generated: true, prompt_version: 1, evidence_page: data.evidencePage, has_more_evidence: hasMoreEvidence, coverage: "distributed excerpts from one bounded source page" }, p_key: requestKey, p_fingerprint: requestKey });
+        if (saved.error) throw new Error("Summary generation completed but persistence failed; no saved summary is claimed.");
+      }
+      return { answer, citations, generated: true, saved: !!requestKey, hasMoreEvidence };
     } catch (error) {
       if (error instanceof GatewayError) console.error("AI answer failed", { code: error.code });
       return { answer: null, citations, generated: false, error: error instanceof GatewayError ? error.message : error instanceof Error ? error.message : "The answer service is unavailable; no generated answer was substituted." };
     }
+  });
+
+export const getSavedSourceSummary = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ workspaceId: z.string().uuid(), fileId: z.string().uuid(), evidencePage: z.number().int().min(0).default(0) }).strict())
+  .handler(async ({ data, context }) => {
+    setResponseHeader("Cache-Control", "no-store");
+    await requireMembership(context.supabase, data.workspaceId, context.userId);
+    const summaries = context.supabase as unknown as SupabaseClient;
+    const result = await summaries.from("source_summaries").select().eq("workspace_id", data.workspaceId).eq("file_id", data.fileId)
+      .eq("metadata->>evidence_page", String(data.evidencePage)).order("generated_at", { ascending: false }).order("id", { ascending: false }).limit(1).maybeSingle();
+    if (result.error) throw new Error("Saved summaries are unavailable until their reviewed migration is installed");
+    return result.data as SavedSummary | null;
   });

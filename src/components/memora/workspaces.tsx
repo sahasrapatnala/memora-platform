@@ -32,7 +32,9 @@ import type { summarizeOffboarding } from "@/lib/memora/offboarding-rules";
 import { uploadOriginal, UploadPaused } from "@/lib/memora/resumable-upload";
 import { ProcessingReview } from "./processing-review";
 import { useQuery } from "@tanstack/react-query";
-import { searchKnowledge, askMemora } from "@/lib/memora/knowledge.functions";
+import { searchKnowledge, askMemora, getSavedSourceSummary } from "@/lib/memora/knowledge.functions";
+import { PageControls } from "./page-controls";
+import { useSourceRecords } from "./source-records";
 import type { SourceCitation } from "@/lib/memora/knowledge-source";
 
 export function DataState() {
@@ -148,6 +150,7 @@ export function UploadWorkspace() {
   const [selected, setSelected] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const { user, workspace, data, refresh, loading, error } = useWorkspace();
+  const { filePage, setFilePage } = useWorkspace();
   const saved = data?.files ?? [];
   const signedIn = !!user;
   const input = useRef<HTMLInputElement>(null);
@@ -299,7 +302,7 @@ export function UploadWorkspace() {
           title="Your saved originals"
           description="Actual files · stored securely, never automatically deleted"
         />
-        {!loading && !error && <FileManager files={saved} />}
+        {!loading && !error && <><PageControls page={filePage} hasNext={data?.filesHasNext ?? false} onPage={setFilePage} /><FileManager files={saved} /></>}
       </section>
       <ProcessingReview />
       {!!data?.jobs.length && <section className="content-section">
@@ -368,7 +371,7 @@ export function Library({ kind }: { kind: "videos" | "documents" }) {
         !error &&
         (files.length ? (
           <>
-            <FileManager files={files} />
+            <FileListPages /><FileManager files={files} />
             {files.map((f) => (
               <div className="integration-row" key={f.id}>
                 <span>{f.name}</span>
@@ -392,33 +395,45 @@ export function Library({ kind }: { kind: "videos" | "documents" }) {
     </Shell>
   );
 }
+function FileListPages() { const { data, filePage, setFilePage } = useWorkspace(); return <PageControls page={filePage} hasNext={data?.filesHasNext ?? false} onPage={setFilePage} />; }
 function SourceBrief({ fileId }: { fileId: string }) {
-  const { workspace } = useWorkspace();
+  const { workspace, user } = useWorkspace();
+  const [evidencePage, setEvidencePage] = useState(0);
+  const saved = useQuery({ queryKey: ["saved-summary", user?.id, workspace?.id, fileId, evidencePage], enabled: !!workspace, gcTime: 0, queryFn: async () => {
+    if (!workspace) throw new Error("Workspace required");
+    return getSavedSourceSummary({ data: { workspaceId: workspace.id, fileId, evidencePage } });
+  } });
   const ask = useServerFn(askMemora);
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<{ answer: string | null; citations: SourceCitation[]; generated: boolean; error?: string } | null>(null);
+  const [result, setResult] = useState<{ answer: string | null; citations: SourceCitation[]; generated: boolean; error?: string; hasMoreEvidence?: boolean } | null>(null);
+  const shown = result ?? (saved.data ? { answer: saved.data.answer, citations: saved.data.citations, generated: true, error: undefined, hasMoreEvidence: saved.data.metadata["has_more_evidence"] === true } : null);
+  useEffect(() => { setResult(null); }, [fileId, workspace?.id, evidencePage]);
   return <section className="content-section"><SectionTitle title="Grounded source brief" description="On-demand AI summary of main topics, decisions and action items; never part of the original source." />
     <Button variant="outline" disabled={!workspace || busy} onClick={async () => {
       if (!workspace || busy) return; setBusy(true);
-      try { setResult(await ask({ data: { workspaceId: workspace.id, fileId, mode: "summary", question: "Summarize the main topics, important decisions and action items in these source excerpts. Cite exact evidence and say when each category is absent." } })); }
+      try { setResult(await ask({ data: { workspaceId: workspace.id, fileId, evidencePage, mode: "summary", question: "Summarize the main topics, important decisions and action items in these source excerpts. Cite exact evidence and say when each category is absent." } })); await saved.refetch(); }
       catch { toast.error("Source brief could not be generated"); }
       finally { setBusy(false); }
     }}>{busy ? "Retrieving source evidence…" : "Generate source brief"}</Button>
-    {result?.error && <div className="notice" role="alert"><AlertCircle /><span>{result.error}</span></div>}
-    {result?.answer && <div className={result.generated ? "generated-answer" : "evidence-answer"}><strong>{result.generated ? "AI-generated · verify against citations" : "Evidence status"}</strong><p>{result.answer}</p></div>}
-    {!!result?.citations.length && <div>{result.citations.map((citation, index) => <a className="citation" key={citation.chunkId} href={citation.to}>[{index + 1}] {citation.label}</a>)}</div>}
+    {shown?.error && <div className="notice" role="alert"><AlertCircle /><span>{shown.error}</span></div>}
+    {shown?.answer && <div className={shown.generated ? "generated-answer" : "evidence-answer"}><strong>{shown.generated ? "AI-generated · verify against citations" : "Evidence status"}</strong><p>{shown.answer}</p></div>}
+    {!!shown?.citations.length && <div>{shown.citations.map((citation, index) => <a className="citation" key={citation.chunkId} href={citation.to}>[{index + 1}] {citation.label}</a>)}</div>}
+    {saved.error && <p role="alert">Saved summaries are unavailable until the reviewed summary migration is installed.</p>}
+    <PageControls page={evidencePage} hasNext={shown?.hasMoreEvidence ?? false} busy={busy} onPage={setEvidencePage} />
   </section>;
 }
 
 export function VideoDetail({ id, initialSeconds = 0 }: { id: string; initialSeconds?: number }) {
   const { data, loading, error } = useWorkspace();
-  const file = data?.files.find((f) => f.id === id);
-  const video = data?.videos.filter((v) => v.file_id === id).at(-1);
-  const segments = data?.transcripts.filter((s) => s.video_id === video?.id) ?? [];
-  const frames = data?.frames.filter((frame) => frame.video_id === video?.id) ?? [];
+  const [page, setPage] = useState(0);
+  const [query, setQuery] = useState("");
+  const { source, records } = useSourceRecords(id, "video", page, query);
+  const file = source.data?.file;
+  const video = source.data?.video;
+  const segments = records.data?.segments ?? [];
+  const frames = records.data?.frames ?? [];
   const [url, setUrl] = useState("");
   const [frameUrls, setFrameUrls] = useState<Record<string, string>>({});
-  const [query, setQuery] = useState("");
   const player = useRef<HTMLVideoElement>(null);
   useEffect(() => {
     setUrl("");
@@ -444,19 +459,20 @@ export function VideoDetail({ id, initialSeconds = 0 }: { id: string; initialSec
       setFrameUrls(Object.fromEntries(result.data.map((item) => [item.path, item.signedUrl])));
     });
     return () => { current = false; };
-  }, [video?.id]);
+  }, [video?.id, records.data?.frames]);
   const seek = (seconds: number) => {
     if (!player.current) return;
     player.current.currentTime = seconds;
     player.current.scrollIntoView({ behavior: "smooth", block: "center" });
     void player.current.play().catch(() => undefined);
   };
+  useEffect(() => { if (player.current && player.current.readyState >= 1) player.current.currentTime = initialSeconds; }, [initialSeconds]);
   const visibleSegments = segments.filter((segment) => segment.content.toLowerCase().includes(query.toLowerCase()));
   return (
     <Shell title="Video Intelligence">
       <PageHeader title={file?.name ?? "Recording"} description="Original source, timestamped transcript and extracted frames." />
       <DataState />
-      {!loading && !error && !file ? <Empty title="Recording not found" /> : <>
+      {!loading && !source.isPending && !source.error && !error && !file ? <Empty title="Recording not found" /> : <>
         {url && <video ref={player} className="original-player" controls src={url} onLoadedMetadata={() => {
           if (player.current && initialSeconds > 0) player.current.currentTime = initialSeconds;
         }} />}
@@ -472,9 +488,11 @@ export function VideoDetail({ id, initialSeconds = 0 }: { id: string; initialSec
             <strong>{stamp(Math.floor(frame.timestamp_seconds))}</strong>
           </button>;
         })}</div>}
+        {(source.error || records.error) && <p role="alert">Source records could not be loaded.</p>}
+        <PageControls page={page} hasNext={records.data?.hasNext ?? false} busy={records.isFetching} onPage={setPage} />
         <SectionTitle title="Transcript" description={`${segments.length} persisted timestamped segments`} />
         {segments.length ? <>
-          <Input aria-label="Search transcript" value={query} onChange={(event) => setQuery(event.target.value)} />
+          <Input aria-label="Search transcript" value={query} onChange={(event) => { setPage(0); setQuery(event.target.value); }} />
           {visibleSegments.map((segment) => <article className="search-result" key={segment.id}>
             <button type="button" className="timestamp-link" onClick={() => seek(segment.start_seconds)}>
               {stamp(Math.floor(segment.start_seconds))} – {stamp(Math.floor(segment.end_seconds))}
@@ -483,7 +501,7 @@ export function VideoDetail({ id, initialSeconds = 0 }: { id: string; initialSec
             <p>{segment.content}</p>
           </article>)}
           {!visibleSegments.length && <p className="quiet-empty">No transcript segments match this search.</p>}
-          <Button variant="outline" onClick={() => download(segments.map((s) => `${stamp(Math.floor(s.start_seconds))} ${s.content}`).join("\n\n"), "transcript.txt", "text/plain")}><Download />Export transcript</Button>
+          <Button variant="outline" onClick={() => download(segments.map((s) => `${stamp(Math.floor(s.start_seconds))} ${s.content}`).join("\n\n"), `transcript-page-${page + 1}.txt`, "text/plain")}><Download />Export transcript page</Button>
         </> : <Empty title="No transcript available yet" description="Transcript segments appear after verified processing and durable ingestion." />}
       </>}
     </Shell>
@@ -492,11 +510,13 @@ export function VideoDetail({ id, initialSeconds = 0 }: { id: string; initialSec
 
 export function DocumentDetail({ id, initial }: { id: string; initial: { page?: number; slide?: number } }) {
   const { data, loading, error } = useWorkspace();
-  const file = data?.files.find((candidate) => candidate.id === id);
-  const document = data?.documents.filter((candidate) => candidate.file_id === id).at(-1);
-  const pages = data?.pages.filter((page) => page.document_id === document?.id) ?? [];
-  const slides = data?.slides.filter((slide) => slide.document_id === document?.id) ?? [];
+  const [page, setPage] = useState(Math.floor((Math.max(1, initial.page ?? initial.slide ?? 1) - 1) / 100));
   const [query, setQuery] = useState("");
+  const { source, records } = useSourceRecords(id, "document", page, query);
+  const file = source.data?.file;
+  const document = source.data?.document;
+  const pages = records.data?.pages ?? [];
+  const slides = records.data?.slides ?? [];
   const visiblePages = pages.filter((page) => (page.content ?? "").toLowerCase().includes(query.toLowerCase()));
   const visibleSlides = slides.filter((slide) => {
     const extra = slide as typeof slide & { title?: string | null; notes?: string | null };
@@ -505,14 +525,17 @@ export function DocumentDetail({ id, initial }: { id: string; initial: { page?: 
   useEffect(() => {
     const target = initial.page ? `page-${initial.page}` : initial.slide ? `slide-${initial.slide}` : null;
     if (target) globalThis.document.getElementById(target)?.scrollIntoView({ block: "center" });
-  }, [document?.id, initial.page, initial.slide]);
+  }, [document?.id, records.data, initial.page, initial.slide]);
+  useEffect(() => { setPage(Math.floor((Math.max(1, initial.page ?? initial.slide ?? 1) - 1) / 100)); }, [id, initial.page, initial.slide]);
   return <Shell title="Document Intelligence">
     <PageHeader title={file?.name ?? "Document"} description="Persisted page and slide extraction with stable source hashes." />
     <DataState />
-    {!loading && !error && !file ? <Empty title="Document not found" /> : <>
+    {!loading && !source.isPending && !source.error && !error && !file ? <Empty title="Document not found" /> : <>
       <ProcessorNotice />
       <SourceBrief fileId={id} />
-      <Input aria-label="Search within document" placeholder="Search extracted content…" value={query} onChange={(event) => setQuery(event.target.value)} />
+      {(source.error || records.error) && <p role="alert">Source records could not be loaded.</p>}
+      <PageControls page={page} hasNext={records.data?.hasNext ?? false} busy={records.isFetching} onPage={setPage} />
+      <Input aria-label="Search within document" placeholder="Search extracted content…" value={query} onChange={(event) => { setPage(0); setQuery(event.target.value); }} />
       {file?.format === "PPTX" ? <>
         <SectionTitle title="Slides" description={`${slides.length} persisted slides`} />
         {visibleSlides.map((slide) => {
@@ -536,7 +559,7 @@ export function DocumentDetail({ id, initial }: { id: string; initial: { page?: 
         })}
       </>}
       {document && !visiblePages.length && !visibleSlides.length && <p className="quiet-empty">No pages or slides match this search.</p>}
-      {!document && !loading && <Empty title="No extracted document results" description="Pages and slides appear after verified processing and durable ingestion." />}
+      {!document && !loading && !source.isPending && !source.error && <Empty title="No extracted document results" description="Pages and slides appear after verified processing and durable ingestion." />}
     </>}
   </Shell>;
 }
@@ -575,42 +598,46 @@ export function Knowledge({ initialQuery = "" }: { initialQuery?: string }) {
   const { workspace, loading, error } = useWorkspace();
   const [query, setQuery] = useState(initialQuery);
   const [submitted, setSubmitted] = useState(initialQuery);
+  const [searchPage, setSearchPage] = useState(0);
   const [format, setFormat] = useState<"MP4" | "MOV" | "PDF" | "PPTX" | "DOCX" | "">("");
   const [question, setQuestion] = useState("");
-  const [answer, setAnswer] = useState<{ answer: string | null; citations: SourceCitation[]; generated: boolean; error?: string } | null>(null);
+  const [answer, setAnswer] = useState<{ answer: string | null; citations: SourceCitation[]; generated: boolean; error?: string; hasMoreEvidence?: boolean } | null>(null);
   const [asking, setAsking] = useState(false);
+  const [answerPage, setAnswerPage] = useState(0);
   const ask = useServerFn(askMemora);
   useEffect(() => { setQuery(initialQuery); setSubmitted(initialQuery); }, [initialQuery]);
   const search = useQuery({
-    queryKey: ["knowledge-search", workspace?.id, submitted, format],
+    queryKey: ["knowledge-search", workspace?.id, submitted, format, searchPage],
     enabled: !!workspace,
-    queryFn: () => searchKnowledge({ data: { workspaceId: workspace!.id, query: submitted, format: format || undefined } }),
+    queryFn: () => { if (!workspace) throw new Error("Workspace required"); return searchKnowledge({ data: { workspaceId: workspace.id, query: submitted, format: format || undefined, page: searchPage } }); },
+    gcTime: 0,
   });
   return <Shell title="Knowledge Explorer">
     <PageHeader title="Knowledge explorer" description="Bounded workspace search with direct page, slide and timestamp citations." />
     <DataState />
-    <form className="toolbar" onSubmit={(event) => { event.preventDefault(); setSubmitted(query.trim()); }}>
+    <form className="toolbar" onSubmit={(event) => { event.preventDefault(); setSearchPage(0); setSubmitted(query.trim()); }}>
       <Input aria-label="Search knowledge" placeholder="Search extracted knowledge…" value={query} onChange={(event) => setQuery(event.target.value)} maxLength={200} />
-      <select aria-label="Filter knowledge by file type" value={format} onChange={(event) => setFormat(event.target.value as typeof format)}>
+      <select aria-label="Filter knowledge by file type" value={format} onChange={(event) => { setSearchPage(0); setFormat(event.target.value as typeof format); }}>
         <option value="">All source types</option>{["MP4", "MOV", "PDF", "PPTX", "DOCX"].map((value) => <option key={value}>{value}</option>)}
       </select>
       <Button type="submit"><Search />Search</Button>
     </form>
     {search.error && <div className="notice" role="alert"><AlertCircle /><span>Search failed. No results are shown.</span><Button variant="outline" onClick={() => void search.refetch()}>Retry</Button></div>}
     {search.isLoading && <p role="status">Searching verified workspace knowledge…</p>}
-    {!search.isLoading && !search.error && (search.data?.length ? search.data.map((item) => <article className="search-result" key={item.id}>
+    {!search.isLoading && !search.error && (search.data?.rows.length ? search.data.rows.map((item) => <article className="search-result" key={item.id}>
       <a className="source-link" href={item.citation.to}>{item.citation.label}</a>
       <p>{item.content || "No extractable text; open the source reference for page status."}</p>
       <small>{item.citation.fileName}</small>
       <div className="action-row"><Button variant="outline" onClick={() => void navigator.clipboard.writeText(item.content).then(() => toast.success("Text copied")).catch(() => toast.error("Could not copy text"))}><Copy />Copy text</Button></div>
     </article>) : <Empty title={submitted ? "No knowledge matches" : "No knowledge assets available yet"} description="Search includes only verified transcript segments, PDF pages and presentation slides." />)}
+    <PageControls page={searchPage} hasNext={search.data?.hasNext ?? false} busy={search.isFetching} onPage={setSearchPage} />
     <section className="content-section ask-panel">
       <SectionTitle title="Ask MEMORA" description="AI-generated answers use only retrieved workspace evidence and always include sources." />
       <form onSubmit={async (event) => {
         event.preventDefault();
         if (!workspace || asking || question.trim().length < 3) return;
         setAsking(true); setAnswer(null);
-        try { setAnswer(await ask({ data: { workspaceId: workspace.id, question: question.trim() } })); }
+        try { setAnswer(await ask({ data: { workspaceId: workspace.id, question: question.trim(), evidencePage: answerPage } })); }
         catch { setAnswer({ answer: null, citations: [], generated: false, error: "The question could not be answered. Your input is preserved; please retry." }); }
         finally { setAsking(false); }
       }}>
@@ -618,6 +645,7 @@ export function Knowledge({ initialQuery = "" }: { initialQuery?: string }) {
         <textarea id="memora-question" value={question} onChange={(event) => setQuestion(event.target.value)} maxLength={1000} rows={4} />
         <Button disabled={asking || !workspace || question.trim().length < 3}>{asking ? "Retrieving evidence…" : "Ask with citations"}</Button>
       </form>
+      <PageControls page={answerPage} hasNext={answer?.hasMoreEvidence ?? false} busy={asking} onPage={(next) => { setAnswer(null); setAnswerPage(next); }} />
       {answer?.error && <div className="notice" role="alert"><AlertCircle /><span>{answer.error}</span></div>}
       {answer?.answer && <div className={answer.generated ? "generated-answer" : "evidence-answer"}><strong>{answer.generated ? "AI-generated answer · verify against citations" : "Evidence status"}</strong><p>{answer.answer}</p></div>}
       {!!answer?.citations.length && <div><h3>Retrieved source evidence</h3>{answer.citations.map((citation, index) => <a className="citation" key={citation.chunkId} href={citation.to}>[{index + 1}] {citation.label}</a>)}</div>}
@@ -633,7 +661,7 @@ export function Storage() {
   const values = measuredStorage(data?.files ?? [], data?.analytics ?? [], retentionApprovalIds(data?.approvals ?? []));
   const recommendations = data?.recommendations ?? [];
   const metrics = [
-    ["Original storage", values.original],
+    ["Original storage", data?.inventoryComplete ? values.original : null],
     ["Verified knowledge packages", values.generated],
     ["Package optimization potential", values.potential],
     ["Pending duplicate savings", recommendationSavings(recommendations)],
@@ -643,7 +671,7 @@ export function Storage() {
   return <Shell title="Storage Optimization">
     <PageHeader title="Storage optimization" description="Measured packages. Separately reviewed retention. Verified reclaimed bytes." />
     <DataState />
-    <div className="metrics-grid storage-metrics">{metrics.map(([label, value]) => <article className="metric" key={label}><span className="metric-label">{label}</span><strong className="metric-value block">{loading || error ? "—" : formatBytes(Number(value))}</strong></article>)}</div>
+    <div className="metrics-grid storage-metrics">{metrics.map(([label, value]) => <article className="metric" key={label}><span className="metric-label">{label}</span><strong className="metric-value block">{loading || error || value === null ? "—" : formatBytes(Number(value))}</strong></article>)}</div>
     <div className="data-state"><ShieldCheck /><span>Potential and approved savings are not reclaimed storage. Deletion requires reviewer approval, exact retained-copy verification and owner confirmation.</span></div>
     <SectionTitle title="Retention recommendations" description={`${recommendations.length} persisted recommendations`} />
     {!loading && !error && (recommendations.length ? recommendations.map((recommendation) => {

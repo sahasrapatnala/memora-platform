@@ -12,6 +12,9 @@ BEGIN
   IF pg_catalog.to_regclass('public.processing_jobs') IS NULL THEN
     RAISE EXCEPTION 'Existing processing_jobs table required';
   END IF;
+  IF pg_catalog.to_regprocedure('public.finalize_processing_attempt(uuid,uuid,uuid,text,jsonb,text)') IS NOT NULL THEN
+    RAISE EXCEPTION 'Ingestion already installed; refuse dispatch replay that would replace active guards';
+  END IF;
   FOR r IN SELECT * FROM (VALUES
     ('dispatch_token','uuid'),('dispatch_started_at','timestamptz'),
     ('dispatch_attempts','integer'),('dispatch_error','text'),
@@ -68,6 +71,34 @@ BEGIN
     END IF;
   END LOOP;
 END $schema$;
+
+
+-- Verify preserved read-only output boundaries, not merely table existence.
+DO $boundaries$
+DECLARE target text; signature text;
+BEGIN
+  FOREACH target IN ARRAY ARRAY['videos','video_speakers','transcript_segments','speaker_turns',
+    'video_frames','slide_intervals','documents','document_pages','document_slides','knowledge_chunks','storage_analytics','activity_logs'] LOOP
+    IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_class WHERE oid=pg_catalog.to_regclass('public.'||target) AND relrowsecurity) OR
+       NOT pg_catalog.has_table_privilege('authenticated','public.'||target,'SELECT') OR
+       NOT pg_catalog.has_table_privilege('service_role','public.'||target,'INSERT,UPDATE,DELETE') OR
+       pg_catalog.has_table_privilege('authenticated','public.'||target,'INSERT,UPDATE,DELETE') OR
+       pg_catalog.has_table_privilege('anon','public.'||target,'SELECT,INSERT,UPDATE,DELETE') THEN
+      RAISE EXCEPTION 'Unexpected output grants/RLS for %',target;
+    END IF;
+    IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_policy WHERE polrelid=pg_catalog.to_regclass('public.'||target)
+      AND polname='workspace_read' AND polcmd='r' AND polpermissive
+      AND polroles=ARRAY[(SELECT oid FROM pg_catalog.pg_roles WHERE rolname='authenticated')]
+      AND pg_catalog.regexp_replace(pg_catalog.pg_get_expr(polqual,polrelid),'public\.|[[:space:]()]','','g')='is_workspace_memberworkspace_id') OR
+      EXISTS(SELECT 1 FROM pg_catalog.pg_policy WHERE polrelid=pg_catalog.to_regclass('public.'||target) AND polname<>'workspace_read') THEN
+      RAISE EXCEPTION 'Unexpected output policies for %',target;
+    END IF;
+  END LOOP;
+  FOREACH signature IN ARRAY ARRAY['public.is_workspace_member(uuid)','public.decide_processing_job(uuid,uuid,text,text)',
+    'public.register_verified_original(uuid,uuid,text,text,text,bigint,text)'] LOOP
+    IF pg_catalog.to_regprocedure(signature) IS NULL THEN RAISE EXCEPTION 'Missing prerequisite %',signature; END IF;
+  END LOOP;
+END $boundaries$;
 
 ALTER TABLE public.processing_jobs
   ADD COLUMN IF NOT EXISTS dispatch_token uuid,
@@ -193,8 +224,8 @@ BEGIN
       NULL::bigint,NULL::text,NULL::text,NULL::timestamptz;
     RETURN;
   END IF;
-  SELECT * INTO f FROM public.files WHERE id=j.file_id AND workspace_id=p_workspace
-    AND user_id=j.user_id FOR SHARE;
+  SELECT * INTO f FROM public.files original WHERE original.id=j.file_id AND original.workspace_id=p_workspace
+    AND original.user_id=j.user_id FOR SHARE;
   IF NOT FOUND OR f.status<>'Uploaded' OR f.size_bytes<=0 OR f.size_bytes>5368709120
      OR f.sha256 IS NULL OR f.sha256 !~ '^[0-9a-f]{64}$'
      OR f.format NOT IN ('MP4','MOV','PDF','PPTX','DOCX') THEN

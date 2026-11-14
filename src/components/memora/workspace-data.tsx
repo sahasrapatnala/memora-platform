@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { readRecordPage } from "@/lib/memora/pagination";
 import { useRouter } from "@tanstack/react-router";
 
 function useWorkspaceState() {
@@ -9,6 +10,7 @@ function useWorkspaceState() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
+  const [filePage, setFilePage] = useState(0);
   const [selected, setSelected] = useState("");
   useEffect(() => {
     setSelected(localStorage.getItem("memora-workspace") ?? "");
@@ -37,9 +39,10 @@ function useWorkspaceState() {
   const workspaces = user ? (workspaceQuery.data ?? []) : [];
   const workspace = workspaces.find((w) => w.id === selected) ?? workspaces[0];
   const records = useQuery({
-    queryKey: ["workspace-records", user?.id, workspace?.id],
+    queryKey: ["workspace-records", user?.id, workspace?.id, filePage],
     enabled: !!user && !!workspace,
     refetchInterval: 5000,
+    gcTime: 0,
     queryFn: async () => {
       if (!workspace) throw new Error("Select a workspace");
       const [
@@ -61,20 +64,17 @@ function useWorkspaceState() {
         slides,
         frames,
         matches,
+        fileCount, transcriptCount, pageCount, slideCount,
       ] = await Promise.all([
-        supabase
-          .from("files")
-          .select()
-          .eq("workspace_id", workspace.id)
-          .neq("status", "Deleted")
-          .order("created_at", { ascending: false }),
+        readRecordPage((from, to) => supabase.from("files").select().eq("workspace_id", workspace.id).neq("status", "Deleted")
+          .order("created_at", { ascending: false }).order("id", { ascending: false }).range(from, to), filePage),
         supabase
           .from("processing_jobs")
           .select()
           .eq("workspace_id", workspace.id)
           .order("created_at", { ascending: false }),
         supabase.from("duplicate_groups").select().eq("workspace_id", workspace.id),
-        supabase.from("knowledge_chunks").select().eq("workspace_id", workspace.id),
+        supabase.from("knowledge_chunks").select().eq("workspace_id", workspace.id).order("id").range(0, 99),
         supabase.from("storage_analytics").select().eq("workspace_id", workspace.id),
         supabase.from("approval_requests").select().eq("workspace_id", workspace.id),
         supabase
@@ -90,37 +90,28 @@ function useWorkspaceState() {
           .from("transcript_segments")
           .select()
           .eq("workspace_id", workspace.id)
-          .order("start_seconds"),
+          .order("start_seconds").order("id").range(0, 99),
         supabase.from("video_speakers").select().eq("workspace_id", workspace.id),
         supabase.from("documents").select().eq("workspace_id", workspace.id),
-        supabase.from("document_pages").select().eq("workspace_id", workspace.id).order("page_number").limit(5000),
-        supabase.from("document_slides").select().eq("workspace_id", workspace.id).order("slide_number").limit(2000),
+        supabase.from("document_pages").select().eq("workspace_id", workspace.id).order("page_number").order("id").range(0, 99),
+        supabase.from("document_slides").select().eq("workspace_id", workspace.id).order("slide_number").order("id").range(0, 99),
         supabase.from("video_frames").select().eq("workspace_id", workspace.id).order("timestamp_seconds").limit(5000),
         supabase.from("duplicate_matches").select().eq("workspace_id", workspace.id).limit(1000),
+        supabase.from("files").select("id", { count: "exact", head: true }).eq("workspace_id", workspace.id).neq("status", "Deleted"),
+        supabase.from("transcript_segments").select("id", { count: "exact", head: true }).eq("workspace_id", workspace.id),
+        supabase.from("document_pages").select("id", { count: "exact", head: true }).eq("workspace_id", workspace.id),
+        supabase.from("document_slides").select("id", { count: "exact", head: true }).eq("workspace_id", workspace.id),
       ]);
       for (const r of [
-        files,
-        jobs,
-        groups,
-        knowledge,
-        analytics,
-        approvals,
-        activity,
-        reports,
-        recommendations,
-        cases,
-        videos,
-        transcripts,
-        speakers,
-        documents,
-        pages,
-        slides,
-        frames,
-        matches,
+        jobs, groups, knowledge, analytics, approvals, activity, reports, recommendations,
+        cases, videos, transcripts, speakers, documents, pages, slides, frames, matches, fileCount, transcriptCount, pageCount, slideCount,
       ])
         if (r.error) throw r.error;
       return {
-        files: files.data ?? [],
+        files: files.rows,
+        filesHasNext: files.hasNext,
+        totals: { files: fileCount.count ?? 0, transcripts: transcriptCount.count ?? 0, pages: pageCount.count ?? 0, slides: slideCount.count ?? 0 },
+        inventoryComplete: filePage === 0 && !files.hasNext,
         // Runtime future-column adapter; replace after approved migration/type generation.
         jobs: (jobs.data ?? []) as Array<NonNullable<typeof jobs.data>[number] & { lease_expires_at?: string | null }>,
         groups: groups.data ?? [],
@@ -143,6 +134,7 @@ function useWorkspaceState() {
     },
   });
   const selectWorkspace = (id: string) => {
+    setFilePage(0);
     setSelected(id);
     localStorage.setItem("memora-workspace", id);
   };
@@ -153,6 +145,8 @@ function useWorkspaceState() {
     workspace,
     workspaces,
     selectWorkspace,
+    filePage,
+    setFilePage,
     refresh,
     data: user && workspace ? records.data : undefined,
     loading: !ready || (!!user && workspaceQuery.isPending) || (!!workspace && records.isPending),

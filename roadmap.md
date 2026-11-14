@@ -1,4 +1,10 @@
 # MEMORA Phase 2
+## Critical pre-deployment corrections
+- [x] Fence final completion and artifact receipts; prove delayed expiry rollback in isolated PostgreSQL.
+- [x] Harden draft migration preflights and document isolated acceptance; preserve historical 0009.
+- [x] Persist source summaries with evidence lineage and refresh reads (review-only schema).
+- [x] Bound and paginate source/file reads; deterministic latest results; focused regressions.
+- [x] Save revised SQL/source package and report remaining approval/deployment blockers.
 ## Focused continuation: processing and knowledge connections
 - [x] Repair worker admission/continuous lease renewal, expired-attempt retry eligibility, bounded callback delivery and review-only ingestion SQL; regression-tested without live dispatch.
 - [x] Connect source summaries independently of question keywords; real gateway streaming with labeled test evidence passed, not persisted-workspace evidence.

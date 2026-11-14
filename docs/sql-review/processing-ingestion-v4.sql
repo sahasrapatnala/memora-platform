@@ -4,8 +4,30 @@
 -- No original files, storage objects, approval records or RLS policies are modified.
 
 DO $preflight$
-DECLARE required text; mismatch integer;
+DECLARE required text; mismatch integer; guard record; target text;
 BEGIN
+  -- This version deliberately refuses replay or partial installation.
+  IF pg_catalog.to_regclass('public.processing_artifacts') IS NOT NULL OR
+     pg_catalog.to_regclass('public.processing_results') IS NOT NULL OR
+     pg_catalog.to_regprocedure('public.finalize_processing_attempt(uuid,uuid,uuid,text,jsonb,text)') IS NOT NULL THEN
+    RAISE EXCEPTION 'Ingestion already or partially installed; reconcile recorded migration, do not replay';
+  END IF;
+  FOREACH target IN ARRAY ARRAY['videos_file_history','documents_file_history','videos_processing_job_unique','documents_processing_job_unique','speakers_job_key_unique','transcript_job_time_unique','turns_job_time_unique','frames_job_path_unique','pages_job_number_unique','slides_job_number_unique','knowledge_job_source_unique','processing_artifacts_job','processing_results_workspace','knowledge_workspace_content'] LOOP
+    IF pg_catalog.to_regclass('public.'||target) IS NOT NULL THEN RAISE EXCEPTION 'Conflicting ingestion index %; reconcile partial schema',target; END IF;
+  END LOOP;
+  FOREACH target IN ARRAY ARRAY['videos','video_speakers','transcript_segments','speaker_turns','video_frames',
+    'slide_intervals','documents','document_pages','document_slides','knowledge_chunks'] LOOP
+    SELECT tgfoid,tgtype,tgenabled INTO guard FROM pg_catalog.pg_trigger
+      WHERE tgrelid=pg_catalog.to_regclass('public.'||target) AND tgname='memora_ingestion_not_installed' AND NOT tgisinternal;
+    IF NOT FOUND OR guard.tgfoid IS DISTINCT FROM pg_catalog.to_regprocedure('public.block_uninstalled_processing_ingestion()')
+      OR guard.tgtype<>23 OR guard.tgenabled NOT IN ('O','A') THEN
+      RAISE EXCEPTION 'Active v3 ingestion guard required on %',target;
+    END IF;
+  END LOOP;
+  SELECT tgfoid,tgtype,tgenabled INTO guard FROM pg_catalog.pg_trigger
+    WHERE tgrelid='public.processing_jobs'::pg_catalog.regclass AND tgname='memora_completion_not_installed' AND NOT tgisinternal;
+  IF NOT FOUND OR guard.tgfoid IS DISTINCT FROM pg_catalog.to_regprocedure('public.block_unverified_processing_completion()')
+    OR guard.tgtype<>23 OR guard.tgenabled NOT IN ('O','A') THEN RAISE EXCEPTION 'Active v3 completion guard required'; END IF;
   FOREACH required IN ARRAY ARRAY[
     'public.claim_approved_processing_job(uuid,uuid,uuid,text,integer)',
     'public.assert_processing_attempt(uuid,uuid,uuid,text)',
@@ -20,6 +42,7 @@ BEGIN
     RAISE EXCEPTION 'pgcrypto digest function required';
   END IF;
   SELECT pg_catalog.count(*) INTO mismatch FROM (VALUES
+    ('videos','id','uuid'),('videos','workspace_id','uuid'),('videos','created_at','timestamptz'),('videos','duration_seconds','float8'),('video_speakers','id','uuid'),('video_speakers','workspace_id','uuid'),('video_speakers','video_id','uuid'),('video_speakers','label','text'),('transcript_segments','id','uuid'),('transcript_segments','workspace_id','uuid'),('transcript_segments','speaker_id','uuid'),('transcript_segments','start_seconds','float8'),('transcript_segments','end_seconds','float8'),('transcript_segments','content','text'),('speaker_turns','workspace_id','uuid'),('speaker_turns','speaker_id','uuid'),('speaker_turns','start_seconds','float8'),('speaker_turns','end_seconds','float8'),('video_frames','workspace_id','uuid'),('video_frames','timestamp_seconds','float8'),('video_frames','storage_path','text'),('video_frames','size_bytes','int8'),('video_frames','sha256','text'),('slide_intervals','video_id','uuid'),('slide_intervals','frame_id','uuid'),('documents','id','uuid'),('documents','workspace_id','uuid'),('documents','created_at','timestamptz'),('document_pages','workspace_id','uuid'),('document_pages','page_number','int4'),('document_pages','content','text'),('document_pages','sha256','text'),('document_pages','size_bytes','int8'),('document_slides','workspace_id','uuid'),('document_slides','slide_number','int4'),('document_slides','content','text'),('document_slides','sha256','text'),('document_slides','size_bytes','int8'),('knowledge_chunks','id','uuid'),('knowledge_chunks','workspace_id','uuid'),('knowledge_chunks','content','text'),('knowledge_chunks','source_reference','jsonb'),('knowledge_chunks','created_at','timestamptz'),('storage_analytics','workspace_id','uuid'),('storage_analytics','file_id','uuid'),('storage_analytics','generated_size_bytes','int8'),('storage_analytics','package_verified_at','timestamptz'),('storage_analytics','reclaimed_size_bytes','int8'),('activity_logs','workspace_id','uuid'),('activity_logs','user_id','uuid'),('activity_logs','file_id','uuid'),('activity_logs','file_name','text'),('activity_logs','action','text'),
     ('processing_jobs','dispatch_token','uuid'),('processing_jobs','dispatch_worker_id','text'),
     ('processing_jobs','dispatch_actor_id','uuid'),('processing_jobs','dispatch_attempts','int4'),
     ('processing_jobs','lease_expires_at','timestamptz'),('videos','file_id','uuid'),
@@ -34,11 +57,40 @@ BEGIN
   IF mismatch<>0 THEN RAISE EXCEPTION 'Required ingestion base schema incompatible'; END IF;
 END $preflight$;
 
+
+-- Verify preserved read-only output boundaries, not merely table existence.
+DO $boundaries$
+DECLARE target text; signature text;
+BEGIN
+  FOREACH target IN ARRAY ARRAY['videos','video_speakers','transcript_segments','speaker_turns',
+    'video_frames','slide_intervals','documents','document_pages','document_slides','knowledge_chunks','storage_analytics','activity_logs'] LOOP
+    IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_class WHERE oid=pg_catalog.to_regclass('public.'||target) AND relrowsecurity) OR
+       NOT pg_catalog.has_table_privilege('authenticated','public.'||target,'SELECT') OR
+       NOT pg_catalog.has_table_privilege('service_role','public.'||target,'INSERT,UPDATE,DELETE') OR
+       pg_catalog.has_table_privilege('authenticated','public.'||target,'INSERT,UPDATE,DELETE') OR
+       pg_catalog.has_table_privilege('anon','public.'||target,'SELECT,INSERT,UPDATE,DELETE') THEN
+      RAISE EXCEPTION 'Unexpected output grants/RLS for %',target;
+    END IF;
+    IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_policy WHERE polrelid=pg_catalog.to_regclass('public.'||target)
+      AND polname='workspace_read' AND polcmd='r' AND polpermissive
+      AND polroles=ARRAY[(SELECT oid FROM pg_catalog.pg_roles WHERE rolname='authenticated')]
+      AND pg_catalog.regexp_replace(pg_catalog.pg_get_expr(polqual,polrelid),'public\.|[[:space:]()]','','g')='is_workspace_memberworkspace_id') OR
+      EXISTS(SELECT 1 FROM pg_catalog.pg_policy WHERE polrelid=pg_catalog.to_regclass('public.'||target) AND polname<>'workspace_read') THEN
+      RAISE EXCEPTION 'Unexpected output policies for %',target;
+    END IF;
+  END LOOP;
+  FOREACH signature IN ARRAY ARRAY['public.is_workspace_member(uuid)','public.decide_processing_job(uuid,uuid,text,text)',
+    'public.register_verified_original(uuid,uuid,text,text,text,bigint,text)'] LOOP
+    IF pg_catalog.to_regprocedure(signature) IS NULL THEN RAISE EXCEPTION 'Missing prerequisite %',signature; END IF;
+  END LOOP;
+END $boundaries$;
+
 CREATE TABLE public.processing_artifacts (
   id uuid PRIMARY KEY DEFAULT pg_catalog.gen_random_uuid(),
   workspace_id uuid NOT NULL REFERENCES public.workspaces(id),
   job_id uuid NOT NULL REFERENCES public.processing_jobs(id),
   file_id uuid NOT NULL REFERENCES public.files(id),
+  dispatch_token uuid NOT NULL,
   kind text NOT NULL CHECK(kind IN ('frame','thumbnail')),
   storage_path text NOT NULL UNIQUE,
   size_bytes bigint NOT NULL CHECK(size_bytes>0 AND size_bytes<=2097152),
@@ -119,11 +171,16 @@ END $columns$;
 DO $history$
 DECLARE c record;
 BEGIN
+  IF (SELECT pg_catalog.count(*) FROM pg_catalog.pg_constraint WHERE
+    (conrelid='public.videos'::pg_catalog.regclass AND conname='videos_file_id_key') OR
+    (conrelid='public.documents'::pg_catalog.regclass AND conname='documents_file_id_key'))<>2 THEN
+    RAISE EXCEPTION 'Expected historical file uniqueness constraints missing; reconcile schema';
+  END IF;
   FOR c IN SELECT conrelid,conname,pg_catalog.pg_get_constraintdef(oid) AS definition
     FROM pg_catalog.pg_constraint WHERE (conrelid='public.videos'::pg_catalog.regclass AND conname='videos_file_id_key')
       OR (conrelid='public.documents'::pg_catalog.regclass AND conname='documents_file_id_key') LOOP
     IF c.definition<>'UNIQUE (file_id)' THEN RAISE EXCEPTION 'Unexpected file uniqueness constraint'; END IF;
-    EXECUTE pg_catalog.format('ALTER TABLE %s DROP CONSTRAINT %I',c.conrelid,c.conname);
+    EXECUTE pg_catalog.format('ALTER TABLE %s DROP CONSTRAINT %I RESTRICT',c.conrelid::pg_catalog.regclass,c.conname);
   END LOOP;
 END $history$;
 
@@ -193,7 +250,10 @@ BEGIN
   j:=public.assert_processing_attempt(p_job,p_workspace,p_token,p_worker_id);
   expiry:=pg_catalog.clock_timestamp()+pg_catalog.make_interval(secs=>p_lease_seconds);
   UPDATE public.processing_jobs SET stage=p_stage,progress=GREATEST(COALESCE(progress,0),p_progress),
-    heartbeat_at=pg_catalog.clock_timestamp(),lease_expires_at=expiry WHERE id=j.id;
+    heartbeat_at=pg_catalog.clock_timestamp(),lease_expires_at=expiry WHERE id=j.id AND workspace_id=p_workspace
+      AND dispatch_token=p_token AND dispatch_worker_id=p_worker_id AND status='Processing'
+      AND lease_expires_at IS NOT NULL AND lease_expires_at>pg_catalog.clock_timestamp();
+  IF NOT FOUND THEN RAISE EXCEPTION 'Lease expired during progress' USING ERRCODE='42501'; END IF;
   RETURN expiry;
 END $fn$;
 
@@ -208,14 +268,15 @@ BEGIN
      p_size IS NULL OR p_size<=0 OR p_size>2097152 OR p_sha256 IS NULL OR p_sha256!~'^[0-9a-f]{64}$' THEN
     RAISE EXCEPTION 'Invalid attempt artifact' USING ERRCODE='22023';
   END IF;
-  INSERT INTO public.processing_artifacts(workspace_id,job_id,file_id,kind,storage_path,size_bytes,sha256)
-    VALUES(p_workspace,p_job,j.file_id,p_kind,p_path,p_size,p_sha256)
+  INSERT INTO public.processing_artifacts(workspace_id,job_id,file_id,dispatch_token,kind,storage_path,size_bytes,sha256)
+    VALUES(p_workspace,p_job,j.file_id,p_token,p_kind,p_path,p_size,p_sha256)
     ON CONFLICT(storage_path) DO NOTHING RETURNING id INTO artifact;
   IF artifact IS NULL THEN
     SELECT id INTO artifact FROM public.processing_artifacts WHERE storage_path=p_path AND job_id=p_job
-      AND workspace_id=p_workspace AND file_id=j.file_id AND kind=p_kind AND size_bytes=p_size AND sha256=p_sha256;
+      AND workspace_id=p_workspace AND file_id=j.file_id AND dispatch_token=p_token AND kind=p_kind AND size_bytes=p_size AND sha256=p_sha256;
     IF artifact IS NULL THEN RAISE EXCEPTION 'Conflicting artifact registration' USING ERRCODE='23505'; END IF;
   END IF;
+  PERFORM public.assert_processing_attempt(p_job,p_workspace,p_token,p_worker_id);
   RETURN artifact;
 END $fn$;
 
@@ -301,9 +362,13 @@ BEGIN
         x.thumbnail_path,x.thumbnail_size_bytes,x.thumbnail_sha256
       FROM pg_catalog.jsonb_to_recordset(p_manifest->'frames') AS x(timestamp_seconds double precision,storage_path text,
         size_bytes bigint,sha256 text,thumbnail_path text,thumbnail_size_bytes bigint,thumbnail_sha256 text)
-      JOIN public.processing_artifacts a ON a.job_id=p_job AND a.kind='frame' AND a.storage_path=x.storage_path
+      JOIN public.processing_artifacts a ON a.job_id=p_job AND a.workspace_id=p_workspace AND a.file_id=j.file_id
+        AND a.dispatch_token=p_token AND a.kind='frame' AND a.storage_path=x.storage_path
+        AND a.storage_path=pg_catalog.format('%s/%s/%s/frame-%s.jpg',p_workspace,p_job,p_token,x.sha256)
         AND a.size_bytes=x.size_bytes AND a.sha256=x.sha256
-      JOIN public.processing_artifacts t ON t.job_id=p_job AND t.kind='thumbnail' AND t.storage_path=x.thumbnail_path
+      JOIN public.processing_artifacts t ON t.job_id=p_job AND t.workspace_id=p_workspace AND t.file_id=j.file_id
+        AND t.dispatch_token=p_token AND t.kind='thumbnail' AND t.storage_path=x.thumbnail_path
+        AND t.storage_path=pg_catalog.format('%s/%s/%s/thumbnail-%s.jpg',p_workspace,p_job,p_token,x.thumbnail_sha256)
         AND t.size_bytes=x.thumbnail_size_bytes AND t.sha256=x.thumbnail_sha256
       WHERE x.timestamp_seconds>=0 AND x.timestamp_seconds<=(p_manifest->>'duration_seconds')::double precision+1;
     GET DIAGNOSTICS v_count=ROW_COUNT;
@@ -350,14 +415,22 @@ BEGIN
     END IF;
   END IF;
 
-  SELECT COALESCE(pg_catalog.sum(size_bytes),0) INTO v_generated FROM public.processing_artifacts WHERE job_id=p_job;
+  SELECT COALESCE(pg_catalog.sum(size_bytes),0) INTO v_generated FROM public.processing_artifacts
+    WHERE job_id=p_job AND workspace_id=p_workspace AND file_id=j.file_id AND dispatch_token=p_token;
   INSERT INTO public.processing_results(job_id,workspace_id,file_id,kind,language,duration_seconds,metadata,manifest_sha256,completed_at)
     VALUES(p_job,p_workspace,j.file_id,v_kind,p_manifest->>'language',(p_manifest->>'duration_seconds')::double precision,
       p_manifest->'metadata',p_manifest_sha256,pg_catalog.clock_timestamp());
   INSERT INTO public.storage_analytics(workspace_id,file_id,generated_size_bytes,package_verified_at,reclaimed_size_bytes)
     VALUES(p_workspace,j.file_id,v_generated,pg_catalog.clock_timestamp(),0);
   UPDATE public.processing_jobs SET status='Completed',stage='Results verified',progress=100,error=NULL,
-    dispatch_error=NULL,lease_expires_at=NULL WHERE id=p_job;
+    dispatch_error=NULL,lease_expires_at=NULL
+    WHERE id=p_job AND workspace_id=p_workspace AND dispatch_token=p_token
+      AND dispatch_worker_id=p_worker_id AND status='Processing'
+      AND lease_expires_at IS NOT NULL AND lease_expires_at>pg_catalog.clock_timestamp();
+  GET DIAGNOSTICS v_count=ROW_COUNT;
+  IF v_count<>1 THEN
+    RAISE EXCEPTION 'Lease expired or attempt changed during finalization; all result writes rolled back' USING ERRCODE='42501';
+  END IF;
   INSERT INTO public.activity_logs(workspace_id,user_id,file_id,file_name,action)
     VALUES(p_workspace,j.user_id,j.file_id,f.name,'Processing results verified');
   RETURN 'Completed';

@@ -17,12 +17,12 @@ export function Dashboard() {
   const completedIds = new Set(data?.jobs.filter((job) => job.status === "Completed").map((job) => job.file_id));
   const completedFiles = files.filter((file) => completedIds.has(file.id));
   const metrics = [
-    ["Total original storage", formatBytes(storage.original), "Active original file bytes"],
-    ["Uploaded files", String(files.length), "Registered originals"],
-    ["Processed videos", String(completedFiles.filter((file) => ["MP4", "MOV"].includes(file.format)).length), "Completed and ingested"],
-    ["Processed documents", String(completedFiles.filter((file) => ["PDF", "PPTX", "DOCX"].includes(file.format)).length), "Completed and ingested"],
-    ["Transcript segments", String(data?.transcripts.length ?? 0), "Persisted timestamped records"],
-    ["Pages and slides", String((data?.pages.length ?? 0) + (data?.slides.length ?? 0)), "Persisted document results"],
+    ["Total original storage", data?.inventoryComplete ? formatBytes(storage.original) : "—", "Active original file bytes"],
+    ["Uploaded files", String(data?.totals.files ?? 0), "Registered originals"],
+    ["Processed videos", data?.inventoryComplete ? String(completedFiles.filter((file) => ["MP4", "MOV"].includes(file.format)).length) : "—", "Completed and ingested"],
+    ["Processed documents", data?.inventoryComplete ? String(completedFiles.filter((file) => ["PDF", "PPTX", "DOCX"].includes(file.format)).length) : "—", "Completed and ingested"],
+    ["Transcript segments", String(data?.totals.transcripts ?? 0), "Persisted timestamped records"],
+    ["Pages and slides", String((data?.totals.pages ?? 0) + (data?.totals.slides ?? 0)), "Persisted document results"],
     ["Duplicate groups", String(data?.groups.length ?? 0), "Exact and near-duplicate candidates"],
     ["Pending recommendations", String(data?.recommendations.filter((item) => item.status === "Awaiting Review").length ?? 0), "Require human review"],
     ["Verified storage reclaimed", formatBytes(storage.reclaimed), "Authorized, verified actions"],
