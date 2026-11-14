@@ -1,4 +1,6 @@
 # MEMORA Phase 2
+## Managed Cloud privileged-access configuration
+- [x] Check Cloud health, refresh the existing managed server credential binding and verify signed-in video readiness with 26 focused tests; no database changes or execution enablement.
 ## Video-only SQL review
 - [x] Recognize installed video-only schema and workspace reads separately from disabled processing and missing worker configuration; verify signed-in readiness without dispatch and retain independent ACL verification.
 - [x] Prepare and test minimal two-table permission correction from exact live ACL/default-role evidence; no live permission changes before approval.
