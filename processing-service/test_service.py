@@ -27,7 +27,7 @@ class ServiceRules(unittest.TestCase):
         with patch.dict(os.environ, {'PROCESSING_API_KEY': 'unit-test-only',
                                     'PROCESSING_CLOUD_ORIGIN': 'https://cloud.example.test'}), \
                 patch('main.download_original', return_value=iter([{'stage': 'Original verified', 'received_bytes': 220480662}])):
-            response = TestClient(app).post('/process', json=descriptor,
+            response = TestClient(app).post('/retrieve', json=descriptor,
                                            headers={'Authorization': 'Bearer unit-test-only'})
         self.assertEqual(response.status_code, 200)
         import json

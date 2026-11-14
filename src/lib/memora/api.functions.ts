@@ -1,3 +1,4 @@
+import { dispatchApprovedVideo } from "./processing-dispatch.server";
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
@@ -34,6 +35,24 @@ export const decideProcessing = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     setResponseHeader("Cache-Control", "no-store");
     return reviewProcessing(context.supabase, context.userId, data);
+  });
+
+  export const dispatchProcessing = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    z.object({
+      jobId: z.string().uuid(),
+      workspaceId: z.string().uuid(),
+    }).strict()
+  )
+  .handler(async ({ data, context }) => {
+    setResponseHeader("Cache-Control", "no-store");
+
+    return dispatchApprovedVideo(context.supabase, {
+      jobId: data.jobId,
+      workspaceId: data.workspaceId,
+      userId: context.userId,
+    });
   });
 
 export const requestProcessing = createServerFn({ method: "POST" })

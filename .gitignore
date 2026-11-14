@@ -30,3 +30,22 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+
+# Local environment secrets
+.env
+
+# Python processing test artifacts
+processing-service/test-output/
+*.backup
+
+.env
+.env.*
+!.env.example
+processing-service/test-output/
+*.backup

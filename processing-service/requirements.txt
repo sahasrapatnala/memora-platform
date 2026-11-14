@@ -10,3 +10,6 @@ Pillow>=10.4
 ImageHash>=4.3
 faster-whisper>=1.1
 pyannote.audio>=4.0
+av==18.1.0
+httpx>=0.28
+pytest>=9.0
