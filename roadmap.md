@@ -1,5 +1,6 @@
 # MEMORA Phase 2
 ## Video-only SQL review
+- [x] Prepare and test minimal two-table permission correction from exact live ACL/default-role evidence; no live permission changes before approval.
 - [x] Apply only approved video-demo-v1 byte-for-byte through the managed tool; regenerate types and rerun 104 application tests without enabling processing.
 - [ ] Review inherited anon/authenticated write grants on newly created processing_artifacts/results — RLS still denies writes; any corrective revocation requires separate approval.
 - [x] Finish trigger/write-path, live function search-path and permission compatibility checks; rerun isolated regressions and save evidence without Cloud changes.

@@ -1,7 +1,7 @@
 """Actual PostgreSQL tests, synthetic fixtures; explicit disposable loopback DB only."""
 import argparse, concurrent.futures, hashlib, json, pathlib, subprocess, time, uuid
 ROOT=pathlib.Path(__file__).resolve().parents[1]
-p=argparse.ArgumentParser();p.add_argument('--local-port',type=int,required=True);p.add_argument('--worker-evidence',type=pathlib.Path);a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('--local-port',type=int,required=True);p.add_argument('--worker-evidence',type=pathlib.Path);p.add_argument('--permission-correction',action='store_true');a=p.parse_args()
 if not 1024<=a.local_port<=65535: raise SystemExit('Dedicated local port required')
 db='video_demo_test_'+uuid.uuid4().hex[:10]
 base=['psql',f'host=127.0.0.1 port={a.local_port} user=lovable sslmode=disable','-X','-qAt','-v','ON_ERROR_STOP=1']
@@ -20,6 +20,9 @@ try:
  run('GRANT ALL ON public.videos,public.transcript_segments,public.video_frames,public.knowledge_chunks,public.storage_analytics,public.activity_logs TO anon;')
  signatures=['public.is_workspace_member(uuid)','public.decide_processing_job(uuid,uuid,text,text)']
  baseline={s:run(f"SELECT json_build_array(prosrc,proowner,proacl)::text FROM pg_proc WHERE oid='{s}'::regprocedure")[0] for s in signatures}
+ if a.permission_correction:
+  # Actual Cloud origin: creator defaults grant ALL to client roles on NEW tables.
+  run('ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon,authenticated,service_role;')
  migration=(ROOT/'docs/sql-review/video-demo-v1.sql').read_text()
  run('BEGIN;'+migration+"SELECT 1/0;COMMIT;",False)
  assert run("SELECT to_regclass('public.processing_artifacts') IS NULL")[0]=='t'
@@ -29,6 +32,26 @@ try:
  run('BEGIN;'+migration+'COMMIT;')
  print('PASS migration on reconstructed 0000-0008 plus actual live grant shape')
  run('BEGIN;'+migration+'COMMIT;',False);print('PASS replay refusal')
+ if a.permission_correction:
+  tables=['processing_artifacts','processing_results']
+  before={table:run(f"SELECT json_build_array(relowner,relrowsecurity,relforcerowsecurity,(SELECT json_agg(row(polname,polcmd,polroles,polqual::text,polwithcheck::text)) FROM pg_policy WHERE polrelid=c.oid)) FROM pg_class c WHERE oid='public.{table}'::regclass")[0] for table in tables}
+  for table in tables:
+   for role in ['anon','authenticated']:
+    assert run(f"SELECT has_table_privilege('{role}','public.{table}','TRUNCATE')")[0]=='t'
+  correction=(ROOT/'docs/sql-review/video-demo-permissions-v1.sql').read_text()
+  run('BEGIN;'+correction+'SELECT 1/0;COMMIT;',False)
+  assert run("SELECT has_table_privilege('authenticated','public.processing_results','INSERT')")[0]=='t'
+  run('BEGIN;'+correction+'COMMIT;')
+  run('BEGIN;'+correction+'COMMIT;')
+  for table in tables:
+   assert run(f"SELECT json_build_array(relowner,relrowsecurity,relforcerowsecurity,(SELECT json_agg(row(polname,polcmd,polroles,polqual::text,polwithcheck::text)) FROM pg_policy WHERE polrelid=c.oid)) FROM pg_class c WHERE oid='public.{table}'::regclass")[0]==before[table]
+   for role in ['anon','authenticated']:
+    assert run(f"SELECT has_table_privilege('{role}','public.{table}','SELECT')")[0]=='t'
+    for privilege in ['INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER','MAINTAIN']:
+     assert run(f"SELECT has_table_privilege('{role}','public.{table}','{privilege}')")[0]=='f'
+   for privilege in ['SELECT','INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER','MAINTAIN']:
+    assert run(f"SELECT has_table_privilege('service_role','public.{table}','{privilege}')")[0]=='t'
+  print('PASS creator-default grants reproduced; correction rollback/replay, exact ACLs and unchanged RLS/policies/owners')
  # ALTER search_path must preserve function bodies, owners and caller ACLs.
  # Baseline authorization bodies match the pg_get_functiondef live inspection.
  for signature in signatures:
@@ -113,6 +136,17 @@ try:
  assert run('SELECT count(*) FROM public.videos')[0]=='1'
  assert run('SELECT count(*) FROM public.transcript_segments')[0]=='1'
  print('PASS expired lease recovery creates fresh token; finalization/replay and separate-connection persistence')
+ if a.permission_correction:
+  for table in ['processing_artifacts','processing_results']:
+   row=run(f"SELECT row_to_json(t) FROM public.{table} t LIMIT 1")[0]
+   for role in ['authenticated','anon']:
+    for statement in [f"INSERT INTO public.{table} SELECT * FROM json_populate_record(NULL::public.{table},'{row}')",f"UPDATE public.{table} SET workspace_id=workspace_id",f"DELETE FROM public.{table}",f"TRUNCATE public.{table}"]:
+     _,err=run(f"SET ROLE {role};SET request.jwt.claim.sub='{u}';{statement}",False)
+     assert 'permission denied' in err,err
+   assert run(f"SET ROLE authenticated;SET request.jwt.claim.sub='{u}';SELECT count(*) FROM public.{table}")[0]!='0'
+   assert run(f"SET ROLE authenticated;SET request.jwt.claim.sub='{stranger}';SELECT count(*) FROM public.{table}")[0]=='0'
+   assert run(f"SET ROLE anon;SELECT count(*) FROM public.{table}")[0]=='0'
+  print('PASS both client roles INSERT/UPDATE/DELETE/TRUNCATE denied; member reads/nonmember isolation; trusted receipt and finalizer writes succeed')
  # No exception for NULL-lineage legacy imports or corrections: none is an existing app workflow.
  # Trusted arbitrary writes must still fail; context is scoped to the finalizer transaction.
  vid=run(f"SELECT id FROM public.videos WHERE processing_job_id='{j}'")[0]
