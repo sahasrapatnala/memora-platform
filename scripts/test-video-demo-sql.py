@@ -17,6 +17,9 @@ try:
  for n in range(9):run(next((ROOT/'drizzle/migrations').glob(f'{n:04}_*.sql')).read_text())
  # Reproduce LIVE broad grants, not the narrower saved migration baseline.
  run('GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;')
+ run('GRANT ALL ON public.videos,public.transcript_segments,public.video_frames,public.knowledge_chunks,public.storage_analytics,public.activity_logs TO anon;')
+ signatures=['public.is_workspace_member(uuid)','public.decide_processing_job(uuid,uuid,text,text)']
+ baseline={s:run(f"SELECT json_build_array(prosrc,proowner,proacl)::text FROM pg_proc WHERE oid='{s}'::regprocedure")[0] for s in signatures}
  migration=(ROOT/'docs/sql-review/video-demo-v1.sql').read_text()
  run('BEGIN;'+migration+"SELECT 1/0;COMMIT;",False)
  assert run("SELECT to_regclass('public.processing_artifacts') IS NULL")[0]=='t'
@@ -26,13 +29,47 @@ try:
  run('BEGIN;'+migration+'COMMIT;')
  print('PASS migration on reconstructed 0000-0008 plus actual live grant shape')
  run('BEGIN;'+migration+'COMMIT;',False);print('PASS replay refusal')
+ # ALTER search_path must preserve function bodies, owners and caller ACLs.
+ # Baseline authorization bodies match the pg_get_functiondef live inspection.
+ for signature in signatures:
+  assert run(f"SELECT json_build_array(prosrc,proowner,proacl)::text FROM pg_proc WHERE oid='{signature}'::regprocedure")[0]==baseline[signature]
+  assert run(f"SELECT proconfig @> ARRAY['search_path=\"\"'] FROM pg_proc WHERE oid='{signature}'::regprocedure")[0]=='t'
+  assert run(f"SELECT has_function_privilege('authenticated','{signature}','EXECUTE')")[0]=='t'
+ for table in ['videos','transcript_segments','video_frames','knowledge_chunks','storage_analytics','activity_logs']:
+  for role in ['anon','authenticated']:
+   for privilege in ['INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER']:
+    assert run(f"SELECT has_table_privilege('{role}','public.{table}','{privilege}')")[0]=='f'
+  assert run(f"SELECT has_table_privilege('authenticated','public.{table}','SELECT')")[0]=='t'
+  for privilege in ['SELECT','INSERT','UPDATE','DELETE']:
+   assert run(f"SELECT has_table_privilege('service_role','public.{table}','{privilege}')")[0]=='t'
+ print('PASS exact six-table write revocations retain authenticated reads and trusted server privileges')
  u,w,other,stranger=[str(uuid.uuid4()) for _ in range(4)]
  run(f"INSERT INTO public.workspaces(id,name,owner_id) VALUES('{w}','LOCAL TEST','{u}'),('{other}','OTHER LOCAL','{stranger}'); INSERT INTO public.workspace_members(workspace_id,user_id,role) VALUES('{w}','{u}','owner'),('{other}','{stranger}','owner');")
+ assert run(f"SET ROLE authenticated;SET request.jwt.claim.sub='{u}';SELECT public.is_workspace_member('{w}')")[0]=='t'
+ assert run(f"SET ROLE authenticated;SET request.jwt.claim.sub='{stranger}';SELECT public.is_workspace_member('{w}')")[0]=='f'
+ # Existing upload registration and deletion audit paths use trusted RPCs, not client writes.
+ auditfile=run(f"SET ROLE service_role;SELECT public.register_verified_original('{u}','{w}','{u}/audit-original','audit.mp4','MP4',3,'{'a'*64}')")[0]
+ assert run(f"SELECT count(*) FROM public.activity_logs WHERE file_id='{auditfile}' AND action='File uploaded'")[0]=='1'
+ run(f"SET ROLE service_role;INSERT INTO public.activity_logs(workspace_id,user_id,file_name,action) VALUES('{w}','{u}','failed.mp4','File upload failed')")
+ run(f"SET ROLE service_role;SELECT public.set_original_deletion('{u}','{auditfile}','Deleting');SELECT public.set_original_deletion('{u}','{auditfile}','Deleted')")
+ assert run(f"SELECT count(*) FROM public.activity_logs WHERE file_id='{auditfile}' AND action='File deleted'")[0]=='1'
+ print('PASS existing verified-registration, upload-failure and deletion audit DB paths retain writes; no storage IO')
  def fixture(fmt='MP4',approve=True):
   f,j=str(uuid.uuid4()),str(uuid.uuid4())
   run(f"INSERT INTO public.files(id,user_id,workspace_id,name,format,size_bytes,storage_path,sha256) VALUES('{f}','{u}','{w}','local.{fmt.lower()}','{fmt}',3,'{u}/{f}','{'a'*64}'); INSERT INTO public.processing_jobs(id,file_id,user_id,workspace_id,status) VALUES('{j}','{f}','{u}','{w}','Approved');")
   if approve:run(f"INSERT INTO public.approval_requests(user_id,file_id,workspace_id,processing_job_id,reason,status) VALUES('{u}','{f}','{w}','{j}','LOCAL TEST','Approved');")
   return f,j
+ # Real authenticated RPC execution with the hardened empty path, not a mocked client.
+ for decision in ['Approved','Rejected']:
+  reviewfile,reviewjob=fixture(approve=False)
+  run(f"UPDATE public.processing_jobs SET status='Awaiting Review' WHERE id='{reviewjob}'")
+  args=f"'{reviewjob}','{w}','{decision}','Local review reason'"
+  run(f"SET ROLE authenticated;SET request.jwt.claim.sub='{stranger}';SELECT * FROM public.decide_processing_job({args})",False)
+  run(f"SET ROLE authenticated;SET request.jwt.claim.sub='{u}';SELECT * FROM public.decide_processing_job('{reviewjob}','{w}','{decision}','')",False)
+  assert run(f"SET ROLE authenticated;SET request.jwt.claim.sub='{u}';SELECT job_status FROM public.decide_processing_job({args})")[0]==decision
+  assert run(f"SET ROLE authenticated;SET request.jwt.claim.sub='{u}';SELECT reused FROM public.decide_processing_job({args})")[0]=='t'
+  assert run(f"SELECT count(*) FROM public.approval_requests WHERE processing_job_id='{reviewjob}'")[0]=='1'
+ print('PASS empty-path membership/RLS and existing approve/reject/reason/replay/nonmember workflows')
  def claim(j,actor=u):return run(f"SET ROLE service_role; SELECT dispatch_token FROM public.claim_approved_processing_job('{j}','{w}','{actor}','worker',300)")[0]
  def identity(j,t):return f"'{j}','{w}','{t}','worker'"
  def manifest(j,t):
@@ -76,6 +113,23 @@ try:
  assert run('SELECT count(*) FROM public.videos')[0]=='1'
  assert run('SELECT count(*) FROM public.transcript_segments')[0]=='1'
  print('PASS expired lease recovery creates fresh token; finalization/replay and separate-connection persistence')
+ # No exception for NULL-lineage legacy imports or corrections: none is an existing app workflow.
+ # Trusted arbitrary writes must still fail; context is scoped to the finalizer transaction.
+ vid=run(f"SELECT id FROM public.videos WHERE processing_job_id='{j}'")[0]
+ updates={'videos':'duration_seconds=3','transcript_segments':"content='unverified correction'",'video_frames':'timestamp_seconds=0','knowledge_chunks':"content='unverified correction'"}
+ inserts={
+  'videos':f"(workspace_id,file_id) VALUES('{w}','{auditfile}')",
+  'transcript_segments':f"(workspace_id,video_id,start_seconds,end_seconds,content) VALUES('{w}','{vid}',0,1,'unverified')",
+  'video_frames':f"(workspace_id,video_id,timestamp_seconds,storage_path,size_bytes) VALUES('{w}','{vid}',0,'unverified.jpg',3)",
+  'knowledge_chunks':f"(workspace_id,file_id,content,source_reference) VALUES('{w}','{f}','unverified','{{}}')"}
+ for table in updates:
+  _,err=run(f"SET ROLE service_role;UPDATE public.{table} SET {updates[table]} WHERE processing_job_id='{j}'",False)
+  assert 'Verified fenced ingestion context required' in err,err
+  _,err=run(f"SET ROLE service_role;INSERT INTO public.{table}{inserts[table]}",False)
+  assert 'Verified fenced ingestion context required' in err,err
+  _,err=run(f"SET ROLE authenticated;SET request.jwt.claim.sub='{u}';SET memora.verified_ingestion='{j}';UPDATE public.{table} SET {updates[table]} WHERE processing_job_id='{j}'",False)
+  assert 'permission denied' in err,err
+ print('PASS all four ingestion triggers reject unverified INSERT/UPDATE; client-forged context cannot bypass revoked writes')
  assert run(f"SET ROLE authenticated;SET request.jwt.claim.sub='{u}';SELECT count(*) FROM public.transcript_segments")[0]=='1'
  assert run(f"SET ROLE authenticated;SET request.jwt.claim.sub='{stranger}';SELECT count(*) FROM public.transcript_segments")[0]=='0'
  for table in ['videos','transcript_segments','video_frames','knowledge_chunks','processing_artifacts','processing_results']:

@@ -1,5 +1,6 @@
 # MEMORA Phase 2
 ## Video-only SQL review
+- [x] Finish trigger/write-path, live function search-path and permission compatibility checks; rerun isolated regressions and save evidence without Cloud changes.
 - [x] Prepare standalone video-only migration with explicit object/permission inventory; no live application.
 - [x] Execute disposable PostgreSQL finalization, expiry, stale-token, retry and isolation tests; verify worker/dispatcher contract.
 - [x] Deliver complete SQL, test evidence and application/rollback instructions for separate approval.

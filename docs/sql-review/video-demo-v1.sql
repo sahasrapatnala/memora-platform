@@ -41,6 +41,10 @@ END $preflight$;
 -- Revoke unused writes only on six touched output/accounting tables; preserve SELECT/RLS.
 REVOKE INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER ON public.videos,public.transcript_segments,public.video_frames,public.knowledge_chunks,public.storage_analytics,public.activity_logs FROM authenticated,anon;
 -- Preserve the authorization bodies/signatures/owners/ACLs; remove object shadowing.
+-- Live pg_get_functiondef checked 2026-11-14: all application tables/types use
+-- public.*, auth.uid() is qualified, and public.is_workspace_member() is qualified.
+-- decide_processing_job's length/trim are built-ins resolved through implicit
+-- pg_catalog even with an empty search_path. No authorization body replacement.
 ALTER FUNCTION public.is_workspace_member(uuid) SET search_path='';
 ALTER FUNCTION public.decide_processing_job(uuid,uuid,text,text) SET search_path='';
 
@@ -308,6 +312,9 @@ END $fn$;
 CREATE OR REPLACE FUNCTION public.block_uninstalled_processing_ingestion()
 RETURNS trigger LANGUAGE plpgsql SET search_path='' AS $fn$
 BEGIN
+  -- Intentionally no NULL-lineage/legacy-edit bypass: the current app has no
+  -- unrelated INSERT/UPDATE writer on these four evidence tables. Audit and
+  -- accounting are NOT targets of this trigger; their trusted writes survive.
   IF NEW.processing_job_id IS NULL OR
      pg_catalog.current_setting('memora.verified_ingestion',true) IS DISTINCT FROM NEW.processing_job_id::text THEN
     RAISE EXCEPTION 'Verified fenced ingestion context required' USING ERRCODE='42501';
