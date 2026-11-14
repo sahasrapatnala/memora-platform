@@ -1,5 +1,7 @@
 # MEMORA Phase 2
 ## Video-only SQL review
+- [x] Apply only approved video-demo-v1 byte-for-byte through the managed tool; regenerate types and rerun 104 application tests without enabling processing.
+- [ ] Review inherited anon/authenticated write grants on newly created processing_artifacts/results — RLS still denies writes; any corrective revocation requires separate approval.
 - [x] Finish trigger/write-path, live function search-path and permission compatibility checks; rerun isolated regressions and save evidence without Cloud changes.
 - [x] Prepare standalone video-only migration with explicit object/permission inventory; no live application.
 - [x] Execute disposable PostgreSQL finalization, expiry, stale-token, retry and isolation tests; verify worker/dispatcher contract.
@@ -8,7 +10,7 @@
 - [x] Add authenticated worker readiness and a real-file local extraction command, without bypassing approved ingestion.
 - [x] Run actual speech MP4 extraction and PDF/PPTX/hash checks; distinguish local evidence from Cloud persistence.
 - [x] Save exact PowerShell startup/tunnel/demo instructions and remaining approval blockers.
-- [ ] Run uploaded-file to persisted-result demo — blocked by reviewed migration approval and configured authenticated local tunnel.
+- [ ] Run uploaded-file to persisted-result demo — blocked by separate execution approval, inherited-grant review and configured authenticated local tunnel.
 ## Critical pre-deployment corrections
 - [x] Fence final completion and artifact receipts; prove delayed expiry rollback in isolated PostgreSQL.
 - [x] Harden draft migration preflights and document isolated acceptance; preserve historical 0009.
