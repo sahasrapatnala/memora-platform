@@ -30,6 +30,7 @@ use the editor.
 <!-- LOVABLE:END -->
 
 ## Application architecture
+- Validate and explicitly inject only public Cloud connection settings in Vite configuration; fail deployment when absent rather than shipping a blank-screen browser or exposing server credentials.
 - Keep content pages in TanStack file routes and reusable MEMORA workspaces in components; parent pages render Outlet for child analysis views.
 - Normal workspaces read only membership-scoped Cloud records through a shared query provider; no demo fallback, because empty and failed reads must remain honest.
 - Processor outputs are client-read-only; verified package bytes and approved retention receipts drive distinct savings totals, because uploads are not successful analysis.

@@ -1,4 +1,6 @@
 # MEMORA Phase 2
+## Public Cloud connection runtime error
+- [x] Explicitly validate browser Cloud settings; 21 focused tests pass and signed-in preview verifies database/workspace reads without runtime errors. The already-published bundle lacks the public URL and requires republishing; no execution gates or Cloud data changed.
 ## Managed Cloud privileged-access configuration
 - [x] Check Cloud health, refresh the existing managed server credential binding and verify signed-in video readiness with 26 focused tests; no database changes or execution enablement.
 ## Video-only SQL review
